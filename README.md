@@ -1,3 +1,16 @@
+# Ethernova (Core-Geth fork)
+
+[![Windows Build](https://github.com/EthernovaDev/ethernova-coregeth/actions/workflows/windows.yml/badge.svg)](https://github.com/EthernovaDev/ethernova-coregeth/actions/workflows/windows.yml)
+
+Windows-focused fork of Core-Geth with Ethash PoW, base fee vault redirection, and Ethernova mainnet/dev genesis files.
+
+Quickstart (Windows):
+- Build: `powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1`
+- Init + run dev (chainId 77778): `powershell -ExecutionPolicy Bypass -File scripts/init-ethernova.ps1 -Mode dev`
+- Mainnet init: `powershell -ExecutionPolicy Bypass -File scripts/init-ethernova.ps1 -Mode mainnet -Bootnodes "<enode://...>"`
+- Verify mainnet fingerprint: `powershell -ExecutionPolicy Bypass -File scripts/verify-mainnet.ps1`
+- Smoke test (dev): `powershell -ExecutionPolicy Bypass -File scripts/smoke-test-fees.ps1`
+
 ## CoreGeth: An Ethereum Protocol Provider
 
 > An [ethereum/go-ethereum](https://github.com/ethereum/go-ethereum) downstream effort to make the Ethereum Protocol accessible and extensible for a diverse ecosystem.
@@ -81,12 +94,8 @@ Please see the [Developers' Guide](https://github.com/ethereum/go-ethereum/wiki/
 for more details on configuring your environment, managing project dependencies, and
 testing procedures.
 
-## License
+## Licensing
 
-The core-geth library (i.e. all code outside of the `cmd` directory) is licensed under the
-[GNU Lesser General Public License v3.0](https://www.gnu.org/licenses/lgpl-3.0.en.html),
-also included in our repository in the `COPYING.LESSER` file.
-
-The core-geth binaries (i.e. all code inside of the `cmd` directory) is licensed under the
-[GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.en.html), also
-included in our repository in the `COPYING` file.
+- Library code (outside `cmd/`): GNU LGPL-3.0-or-later (see `LICENSE` and `COPYING.LESSER`).
+- Binaries under `cmd/`: GNU GPL-3.0-or-later (see `COPYING`).
+Both license texts are shipped verbatim for GitHub detection; this fork remains compatible with upstream Core-Geth licensing.

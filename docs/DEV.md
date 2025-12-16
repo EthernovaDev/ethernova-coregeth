@@ -2,7 +2,7 @@
 
 ## Build
 ```
-pwsh -File scripts/build-windows.ps1
+powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1
 ```
 Output: `bin/ethernova.exe`
 
@@ -11,7 +11,7 @@ Use `genesis-dev.json` (difficulty=0x1, forks at block 0, block reward halving b
 
 ## Init + start (dev mode)
 ```
-pwsh -File scripts/init-ethernova.ps1 -Mode dev
+powershell -ExecutionPolicy Bypass -File scripts/init-ethernova.ps1 -Mode dev
 ```
 - Datadir: `data-dev\`
 - Logs: `logs\node.log` and `logs\node.err`
@@ -21,10 +21,10 @@ pwsh -File scripts/init-ethernova.ps1 -Mode dev
 
 ## Smoke test (baseFeeVault)
 ```
-pwsh -File scripts/smoke-test-fees.ps1 -Rpc http://127.0.0.1:8545 -Pass "nova-smoke"
+powershell -ExecutionPolicy Bypass -File scripts/smoke-test-fees.ps1 -Rpc http://127.0.0.1:8545 -Pass "nova-smoke"
 ```
 Pass criteria: type-2 tx mined, gasUsed>0, vault delta == baseFeePerGas * gasUsed.
-
+> Tip: If you have PowerShell 7 installed, `pwsh` works too; examples above assume Windows PowerShell with `powershell -ExecutionPolicy Bypass -File ...`.
 ## Useful attach commands
 ```
 bin\ethernova.exe attach --exec "eth.blockNumber" http://127.0.0.1:8545
