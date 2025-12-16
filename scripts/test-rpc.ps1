@@ -3,6 +3,7 @@ Param(
 )
 
 $ErrorActionPreference = "Stop"
+$ExpectedGenesisHash = "0xc67bd6160c1439360ab14abf7414e8f07186f3bed095121df3f3b66fdc6c2183"
 
 function Call-Rpc([string]$method, [object[]]$params=@()) {
     $payload = @{
@@ -31,8 +32,13 @@ $okChain = $chain -and $chain.result
 Print-Result "eth_chainId" $okChain "($($chain.result))"
 
 $block0 = Call-Rpc "eth_getBlockByNumber" @("0x0",$false)
-$okBlock = $block0 -and $block0.result -and $block0.result.hash
-Print-Result "eth_getBlockByNumber(0x0,false)" $okBlock "hash=$($block0.result.hash)"
+$blockHash = $null
+if ($block0 -and $block0.result) { $blockHash = $block0.result.hash }
+$okBlock = $false
+if ($blockHash) {
+    $okBlock = ($blockHash.ToLower() -eq $ExpectedGenesisHash.ToLower())
+}
+Print-Result "genesis hash" $okBlock "hash=$blockHash"
 
 $work = Call-Rpc "eth_getWork"
 $okWork = $work -and $work.result -and $work.result.Count -ge 3
