@@ -1,8 +1,8 @@
-$ErrorActionPreference = "Stop"
-
 Param(
     [string]$Endpoint = "http://127.0.0.1:8545"
 )
+
+$ErrorActionPreference = "Stop"
 
 function Call-Rpc([string]$method, [object[]]$params=@()) {
     $payload = @{

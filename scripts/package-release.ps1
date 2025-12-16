@@ -10,33 +10,30 @@ if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Force -Path $OutDi
 
 $ZipName = "ethernova-$Version-windows.zip"
 $ZipPath = Join-Path $OutDir $ZipName
+$StageDir = Join-Path $OutDir "stage-windows"
 
-$items = @(
-    "bin\ethernova.exe",
-    "bin\EthernovaNode.exe",
-    "genesis-dev.json",
-    "genesis-mainnet.json",
-    "VERSION",
-    "scripts\init-ethernova.ps1",
-    "scripts\smoke-test-fees.ps1",
-    "scripts\smoke-test-fees.js",
-    "scripts\run-bootnode.ps1",
-    "scripts\run-second-node.ps1",
-    "scripts\check-peering.ps1",
-    "scripts\print-genesis-fingerprint.ps1",
-    "networks\mainnet\bootnodes.txt",
-    "networks\mainnet\static-nodes.json",
-    "networks\dev\bootnodes.txt",
-    "networks\dev\static-nodes.json",
-    "docs\LAUNCH.md",
-    "docs\DEV.md",
-    "docs\CONFIG.md",
-    "LICENSE",
-    "README.md",
-    "RELEASE-NOTES.md"
-)
+if (Test-Path $StageDir) { Remove-Item -Recurse -Force $StageDir }
+New-Item -ItemType Directory -Force -Path $StageDir | Out-Null
 
-Compress-Archive -Path $items -DestinationPath $ZipPath -Force
+# Copy binaries to stage root
+Copy-Item "bin\ethernova.exe" "$StageDir\ethernova.exe" -Force
+Copy-Item "bin\EthernovaNode.exe" "$StageDir\EthernovaNode.exe" -Force
+
+# Copy genesis files to stage root
+Copy-Item "genesis-dev.json" "$StageDir\genesis-dev.json" -Force
+Copy-Item "genesis-mainnet.json" "$StageDir\genesis-mainnet.json" -Force
+
+# Copy supporting files/directories
+Copy-Item "VERSION" "$StageDir\VERSION" -Force
+Copy-Item "LICENSE" "$StageDir\LICENSE" -Force
+Copy-Item "README.md" "$StageDir\README.md" -Force
+Copy-Item "RELEASE-NOTES.md" "$StageDir\RELEASE-NOTES.md" -Force
+Copy-Item "docs" "$StageDir\docs" -Recurse -Force
+Copy-Item "scripts" "$StageDir\scripts" -Recurse -Force
+Copy-Item "networks" "$StageDir\networks" -Recurse -Force
+
+if (Test-Path $ZipPath) { Remove-Item $ZipPath -Force }
+Compress-Archive -Path (Join-Path $StageDir "*") -DestinationPath $ZipPath -Force
 
 $hash = Get-FileHash -Algorithm SHA256 -Path $ZipPath
 $hashLine = "$($hash.Hash)  $ZipName"
