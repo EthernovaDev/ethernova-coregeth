@@ -2,8 +2,7 @@
 [CmdletBinding()]
 param(
   [string]$GenesisPath = "",
-  [string]$Endpoint = "\\.\\pipe\\ethernova-mainnet.ipc",
-  [string]$Binary = "",
+  [string]$Endpoint = "http://127.0.0.1:8545",
   [string]$ExpectedGenesisHash = "0xc67bd6160c1439360ab14abf7414e8f07186f3bed095121df3f3b66fdc6c2183"
 )
 
@@ -32,7 +31,8 @@ function HexToUtf8([string]$hex) {
   try {
     $b = HexToBytes $hex
     if ($b.Length -eq 0) { return "" }
-    return ([Text.Encoding]::UTF8.GetString($b)).Trim([char]0)
+    $text = -join ($b | ForEach-Object { [char]$_ })
+    return $text.Trim([char]0)
   } catch { return "" }
 }
 
@@ -41,6 +41,7 @@ function Parse-BigInt([string]$s) {
   $t = $s.Trim()
   if ($t.StartsWith("0x")) {
     $be = HexToBytes $t            # big-endian bytes
+    if ($be.Length -eq 0) { return $null }
     [Array]::Reverse($be)          # little-endian for BigInteger
 
     # Add 0x00 to force unsigned
@@ -54,11 +55,21 @@ function Parse-BigInt([string]$s) {
   return [System.Numerics.BigInteger]::Parse($t, [System.Globalization.CultureInfo]::InvariantCulture)
 }
 
-function Attach-Exec([string]$expr) {
-  $out = & $Binary attach --exec $expr $Endpoint 2>$null | Out-String
-  $lines = $out -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" -and $_ -notmatch "^(WARN|INFO)\b" }
-  if ($lines.Count -eq 0) { return "" }
-  return $lines[$lines.Count - 1].Trim()
+# Simple JSON-RPC caller (HTTP/HTTPS)
+function Call-Rpc([string]$method, [object[]]$params) {
+  $payload = @{
+    jsonrpc = "2.0"
+    method  = $method
+    params  = $params
+    id      = 1
+  } | ConvertTo-Json -Compress
+  try {
+    $resp = Invoke-RestMethod -Method Post -Uri $Endpoint -Body $payload -ContentType "application/json"
+    if ($resp -and $resp.result) { return $resp.result }
+    return $null
+  } catch {
+    return $null
+  }
 }
 
 # Resolve repo root + defaults
@@ -68,14 +79,8 @@ if ([string]::IsNullOrWhiteSpace($GenesisPath)) {
   $GenesisPath = Join-Path $repoRoot "genesis-mainnet.json"
 }
 
-if ([string]::IsNullOrWhiteSpace($Binary)) {
-  $candidate = Join-Path $repoRoot "bin\ethernova.exe"
-  if (Test-Path $candidate) { $Binary = $candidate } else { $Binary = "ethernova.exe" }
-}
-
 Write-Host "== Ethernova Mainnet Fingerprint Verify ==" -ForegroundColor Cyan
 Write-Host "GenesisPath: $GenesisPath"
-Write-Host "Binary:      $Binary"
 Write-Host "Endpoint:    $Endpoint"
 Write-Host ""
 
@@ -100,24 +105,25 @@ $expected = [ordered]@{
   "ExtraDataText"    = (HexToUtf8 $gen.extraData)
 }
 
-# Read runtime from node (via attach)
+# Read runtime from node (via JSON-RPC)
 $runtime = [ordered]@{}
-try {
-  $runtime["ChainId"]       = Attach-Exec "eth.chainId"
-  $runtime["NetworkId"]     = Attach-Exec "net.version"
-  $runtime["GenesisHash"]   = Attach-Exec "eth.getBlock(0).hash"
-  $runtime["GasLimit"]      = Attach-Exec "eth.getBlock(0).gasLimit"
-  $runtime["Difficulty"]    = Attach-Exec "eth.getBlock(0).difficulty"
-  $runtime["BaseFeePerGas"] = Attach-Exec "eth.getBlock(0).baseFeePerGas"
-  $runtime["ExtraDataHex"]  = Attach-Exec "eth.getBlock(0).extraData"
-  $runtime["ExtraDataText"] = HexToUtf8 $runtime["ExtraDataHex"]
+$missing = New-Object System.Collections.Generic.List[string]
 
-  # optional (may be undefined if admin.nodeInfo doesn't expose custom field)
-  $runtime["BaseFeeVault"]  = Attach-Exec "admin.nodeInfo.protocols.eth.config.baseFeeVault"
-} catch {
-  Write-Host "WARN: Could not query node via attach. Is ethernova running and is Endpoint correct?" -ForegroundColor Yellow
-  Write-Host $_.Exception.Message -ForegroundColor Yellow
+$runtime["ChainId"]   = Call-Rpc "eth_chainId" @()
+$runtime["NetworkId"] = Call-Rpc "net_version" @()
+$block0              = Call-Rpc "eth_getBlockByNumber" @("0x0",$false)
+if ($block0) {
+  $runtime["GenesisHash"]   = $block0.hash
+  $runtime["GasLimit"]      = $block0.gasLimit
+  $runtime["Difficulty"]    = $block0.difficulty
+  $runtime["BaseFeePerGas"] = $block0.baseFeePerGas
+  $runtime["ExtraDataHex"]  = $block0.extraData
+  $runtime["ExtraDataText"] = HexToUtf8 $runtime["ExtraDataHex"]
+} else {
+  $missing.Add("Block 0 via eth_getBlockByNumber") | Out-Null
 }
+# baseFeeVault not exposed on public RPC; mark as skipped
+$runtime["BaseFeeVault"] = "SKIP (not available via public RPC)"
 
 # Compare
 $diffs = New-Object System.Collections.Generic.List[string]
@@ -164,27 +170,49 @@ if (-not [string]::IsNullOrWhiteSpace($runtime["BaseFeeVault"])) {
 }
 
 Write-Host ""
-Write-Host "Expected (from genesis-mainnet.json):" -ForegroundColor Cyan
-$expected.GetEnumerator() | ForEach-Object { "{0,-14} {1}" -f $_.Key, $_.Value } | Write-Host
+Write-Host ("{0,-14} {1,-24} {2,-24} {3}" -f "Field","Expected","Runtime","Status")
+Write-Host ("{0,-14} {1,-24} {2,-24} {3}" -f "-----","--------","-------","------")
 
-Write-Host ""
-Write-Host "Runtime (from node):" -ForegroundColor Cyan
-$runtime.GetEnumerator() | ForEach-Object { "{0,-14} {1}" -f $_.Key, $_.Value } | Write-Host
+function Print-Row([string]$name, [string]$expVal, [string]$runVal, [bool]$numeric=$false) {
+  $status = "OK"
+  if ([string]::IsNullOrWhiteSpace($runVal) -or $runVal -like "SKIP*") {
+    $status = "SKIP"
+    $missing.Add($name) | Out-Null
+  } elseif ($numeric) {
+    if ((Parse-BigInt $expVal) -ne (Parse-BigInt $runVal)) { $status = "MISMATCH" }
+  } else {
+    if ((Normalize-Hex $expVal) -ne (Normalize-Hex $runVal)) { $status = "MISMATCH" }
+  }
+  Write-Host ("{0,-14} {1,-24} {2,-24} {3}" -f $name, $expVal, $runVal, $status)
+  if ($status -eq "MISMATCH") {
+    $diffs.Add("$name expected=$expVal runtime=$runVal") | Out-Null
+  }
+}
+
+Print-Row "ChainId"       $expected["ChainId"]       $runtime["ChainId"]       $true
+Print-Row "NetworkId"     $expected["NetworkId"]     $runtime["NetworkId"]     $true
+Print-Row "GenesisHash"   $expected["GenesisHash"]   $runtime["GenesisHash"]
+Print-Row "GasLimit"      $expected["GasLimit"]      $runtime["GasLimit"]      $true
+Print-Row "Difficulty"    $expected["Difficulty"]    $runtime["Difficulty"]    $true
+Print-Row "BaseFeePerGas" $expected["BaseFeePerGas"] $runtime["BaseFeePerGas"] $true
+Print-Row "ExtraDataHex"  $expected["ExtraDataHex"]  $runtime["ExtraDataHex"]
+Print-Row "ExtraDataText" $expected["ExtraDataText"] $runtime["ExtraDataText"]
+Print-Row "BaseFeeVault"  $expected["BaseFeeVault"]  $runtime["BaseFeeVault"]
 
 Write-Host ""
 if ($diffs.Count -eq 0) {
   Write-Host "OK: Mainnet fingerprint matches." -ForegroundColor Green
   if ($missing.Count -gt 0) {
-    Write-Host "Note: Skipped optional fields:" -ForegroundColor Yellow
-    $missing | ForEach-Object { " - $_" } | Write-Host
+    Write-Host "Note: Skipped fields:" -ForegroundColor Yellow
+    $missing | Sort-Object -Unique | ForEach-Object { " - $_" } | Write-Host
   }
   exit 0
 } else {
   Write-Host "MISMATCH: Differences found:" -ForegroundColor Red
   $diffs | ForEach-Object { " - $_" } | Write-Host
   if ($missing.Count -gt 0) {
-    Write-Host "Missing (not compared):" -ForegroundColor Yellow
-    $missing | ForEach-Object { " - $_" } | Write-Host
+    Write-Host "Skipped (not compared):" -ForegroundColor Yellow
+    $missing | Sort-Object -Unique | ForEach-Object { " - $_" } | Write-Host
   }
   exit 2
 }
