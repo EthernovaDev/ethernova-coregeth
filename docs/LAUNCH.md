@@ -84,6 +84,18 @@ Expected: both nodes report `net.peerCount > 0`.
 - Stop by pressing Enter in the launcher console.
 - For mining, prefer `scripts\run-mainnet-node.ps1 -Mine` (launcher defaults to non-mining for safety).
 
+## Miningcore Pool Node (Windows Portable)
+1) Download the Windows release ZIP and extract.
+2) Run `Start-PoolNode.cmd 0xPOOLADDRESS` (or double-click and enter the etherbase when prompted).
+   - Keeps datadir in `.\data-mainnet`, logs in `.\logs\pool-node.log` / `pool-node.err.log`.
+   - RPC: `http://127.0.0.1:8545` (fallback 8547 if busy), WS: `127.0.0.1:8546` (fallback 8548).
+   - Initializes with `genesis-mainnet.json` if needed; will not wipe data.
+3) Point Miningcore daemon URL to `http://127.0.0.1:8545` (Ethash getWork). For remote Miningcore, use SSH tunnel—do not expose RPC publicly.
+4) Verify node before attaching the pool:
+   - `powershell -ExecutionPolicy Bypass -File scripts\test-rpc.ps1 -Endpoint http://127.0.0.1:8545`
+   - `powershell -ExecutionPolicy Bypass -File scripts\verify-mainnet.ps1 -Endpoint http://127.0.0.1:8545`
+   - Expected: chainId 0x12fd1, genesis hash `0xc67bd6...6c2183`, `eth_getWork` returns values when mining is on.
+
 ## Security defaults (mainnet)
 - RPC binds to `127.0.0.1` only.
 - HTTP APIs: `eth,net,web3` only (no `personal`, `admin`, `debug`, `txpool`).
