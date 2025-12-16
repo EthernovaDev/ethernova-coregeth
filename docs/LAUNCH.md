@@ -3,54 +3,66 @@
 Windows-only instructions to stand up and operate Ethernova mainnet nodes safely.
 
 ## Modes and chain IDs
-- Mainnet: chainId/networkId **77777** (genesis-mainnet.json)
-- Dev/Testnet: chainId/networkId **77778** (genesis-dev.json)
-- Do not mix modes: scripts validate the chainId to avoid accidental mainnet use in dev and vice versa.
+- Mainnet: chainId/networkId **77777** (`genesis-mainnet.json`)
+- Dev/Testnet: chainId/networkId **77778** (`genesis-dev.json`)
+- Scripts validate the chainId to avoid accidental cross-use.
 
 ## Build the binary
 ```
-pwsh -File scripts/build-windows.ps1
+powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1
 ```
-Outputs `bin\ethernova.exe`.
+Outputs `bin\ethernova.exe`. (If you use PowerShell 7, `pwsh` also works.)
 
 ## Launch checklist (mainnet)
 1) Pick genesis: `genesis-mainnet.json` (extraData "NOVA MAINNET").
 2) Init + start:  
-   `pwsh -File scripts/init-ethernova.ps1 -Mode mainnet -Bootnodes "<enode://...>"`
+   `powershell -ExecutionPolicy Bypass -File scripts/init-ethernova.ps1 -Mode mainnet -Bootnodes "<enode://...>"`
 3) Confirm fingerprint (hash + config):  
-   `pwsh -File scripts/print-genesis-fingerprint.ps1`
+   `powershell -ExecutionPolicy Bypass -File scripts/verify-mainnet.ps1`
 4) Share enode: `bin\ethernova.exe attach --exec "admin.nodeInfo.enode" http://127.0.0.1:8545`
 5) Add bootnodes/static peers: edit `networks/mainnet/bootnodes.txt` and `networks/mainnet/static-nodes.json` then restart.
 6) Optional: run a second node locally for peering sanity (see below).
 
-## Genesis fingerprint (mainnet)
-- ChainId/NetworkId: 77777
-- BaseFeeVault: 0x3a38560b66205bb6a31decbcb245450b2f15d4fd
-- GasLimit: 0x1c9c380
-- Difficulty: 0x400000
-- BaseFeePerGas: 0x3b9aca00 (1 gwei)
-- Block 0 hash: 0xc67bd6160c1439360ab14abf7414e8f07186f3bed095121df3f3b66fdc6c2183 (from `scripts/print-genesis-fingerprint.ps1 -Endpoint \\.\pipe\ethernova-mainnet.ipc`)
+## Mainnet Genesis Fingerprint
+| Field              | Value                                                               |
+|--------------------|---------------------------------------------------------------------|
+| ChainId/NetworkId  | 77777                                                               |
+| Consensus          | Ethash                                                              |
+| Genesis Block Hash | 0xc67bd6160c1439360ab14abf7414e8f07186f3bed095121df3f3b66fdc6c2183  |
+| BaseFeeVault       | 0x3a38560b66205bb6a31decbcb245450b2f15d4fd                          |
+| GasLimit           | 0x1c9c380                                                           |
+| Difficulty         | 0x400000                                                            |
+| BaseFeePerGas      | 0x3b9aca00 (1 gwei)                                                 |
+| extraData          | "NOVA MAINNET"                                                      |
 
 ## Bootnodes / static peers
-- `networks/mainnet/bootnodes.txt`: enode URLs, one per line.
+- `networks/mainnet/bootnodes.txt`: enode URLs, one per line (placeholder until you replace them).
 - `networks/mainnet/static-nodes.json`: JSON array of enode URLs copied into `data-mainnet/geth/static-nodes.json` by the init script.
-- Bootnode helper: `pwsh -File scripts/run-bootnode.ps1` (prints enode, HTTP admin on 8550 by default).
+- Bootnode helper: `powershell -ExecutionPolicy Bypass -File scripts/run-bootnode.ps1` (prints enode, HTTP admin on 8550 by default).
 - For local peering, replace the IP in the enode with `127.0.0.1` to avoid NAT detection getting in the way.
-- Bootnodes oficiales (rellena con los reales antes del lanzamiento):
-  | Nombre | Enode | Ubicación |
-  |--------|-------|-----------|
-  | bootnode-1 | enode://<pubkey>@<ip>:30303 | VPS recomendada (bahía segura) |
-  | bootnode-2 | enode://<pubkey>@<ip>:30303 | VPS recomendada |
-  - Procedimiento:
-    1) En el VPS bootnode: `pwsh -File scripts/run-bootnode.ps1` (o equivalente Linux con flags: `geth --nodiscover --port 30303 --http --http.addr 0.0.0.0 --http.port 8550 --http.api net,admin --verbosity 3 --ipcdisable`).
-    2) Obtener enode: `geth attach --exec "admin.nodeInfo.enode" http://<bootnode-ip>:8550`.
-    3) Reemplazar enodes en `networks/mainnet/bootnodes.txt` y `networks/mainnet/static-nodes.json` y redistribuir.
-    4) Verificar desde nodo fresh: `admin.addPeer("<enode>")` y comprobar `net.peerCount > 0`.
+
+### How to replace placeholders with real enodes
+1) Generate a nodekey  
+   - Windows: `powershell -ExecutionPolicy Bypass -Command "[IO.File]::WriteAllBytes('boot.key',(New-Guid).ToByteArray())"`  
+   - Linux: `openssl rand -hex 32 > boot.key`
+2) Start a bootnode on the VPS  
+   - Windows (PowerShell): `powershell -ExecutionPolicy Bypass -File scripts/run-bootnode.ps1 -NodeKeyPath .\boot.key -Port 30303 -HttpPort 8550 -HttpAddr 0.0.0.0`  
+   - Linux: `./ethernova --nodiscover --nodekey boot.key --port 30303 --http --http.addr 0.0.0.0 --http.port 8550 --http.api net,admin --verbosity 3 --ipcdisable`
+3) Read the enode from the VPS: `ethernova attach --exec "admin.nodeInfo.enode" http://<bootnode-ip>:8550`
+4) Paste the enode into `networks/mainnet/bootnodes.txt` and `networks/mainnet/static-nodes.json` (JSON array) and redistribute both files.
+5) Verify peering from a fresh node:  
+   `powershell -ExecutionPolicy Bypass -File scripts/check-peering.ps1 -RpcA http://127.0.0.1:8545`  
+   Expect `net.peerCount > 0`.
+
+Minimum checklist before publishing bootnodes:
+- Ports 30303 TCP/UDP open.
+- External IP / NAT is correct (`--nat extip:<ip>` if needed).
+- VPS clock synced (NTP).
 
 ## Running a second node (local peering)
 ```
-pwsh -File scripts/run-second-node.ps1 -Mode mainnet -Bootnodes "<enode://of-first-node>" -Port 30304 -HttpPort 8547 -WsPort 8548
-pwsh -File scripts/check-peering.ps1 -RpcA http://127.0.0.1:8545 -RpcB http://127.0.0.1:8547
+powershell -ExecutionPolicy Bypass -File scripts/run-second-node.ps1 -Mode mainnet -Bootnodes "<enode://of-first-node>" -Port 30304 -HttpPort 8547 -WsPort 8548
+powershell -ExecutionPolicy Bypass -File scripts/check-peering.ps1 -RpcA http://127.0.0.1:8545 -RpcB http://127.0.0.1:8547
 ```
 Expected: both nodes report `net.peerCount > 0`.
 
@@ -67,8 +79,8 @@ Expected: both nodes report `net.peerCount > 0`.
 
 ## Dev/Testnet mode (chainId 77778)
 ```
-pwsh -File scripts/init-ethernova.ps1 -Mode dev
-pwsh -File scripts/smoke-test-fees.ps1
+powershell -ExecutionPolicy Bypass -File scripts/init-ethernova.ps1 -Mode dev
+powershell -ExecutionPolicy Bypass -File scripts/smoke-test-fees.ps1
 ```
 - Datadir: `data-dev\`, easy mining (difficulty 0x1), txpool/miner gasprice 0.
 - Use for local testing only; do not point wallets to mainnet RPC when using dev genesis.
@@ -79,6 +91,6 @@ pwsh -File scripts/smoke-test-fees.ps1
 
 ## Release packaging
 ```
-pwsh -File scripts/package-release.ps1
+powershell -ExecutionPolicy Bypass -File scripts/package-release.ps1
 ```
 Produces `dist/ethernova-<version>-windows.zip` with binaries, genesis files, scripts, and checksums.
