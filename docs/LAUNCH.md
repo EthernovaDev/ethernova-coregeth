@@ -66,6 +66,14 @@ powershell -ExecutionPolicy Bypass -File scripts/check-peering.ps1 -RpcA http://
 ```
 Expected: both nodes report `net.peerCount > 0`.
 
+## Miningcore quickstart (solo mining / pool daemon)
+- Keep RPC on localhost; run Miningcore on the same host or via SSH tunnel (do NOT expose 0.0.0.0).
+- Start the RPC daemon (no datadir wipe):  
+  `powershell -ExecutionPolicy Bypass -File scripts\run-mainnet-node.ps1 -Etherbase <POOL_ADDRESS> -Mine`
+- Verify RPC responses for chainId/block0/getWork:  
+  `powershell -ExecutionPolicy Bypass -File scripts\test-rpc.ps1 -Endpoint http://127.0.0.1:8545`
+- Point Miningcore to `http://127.0.0.1:8545` with Ethash getWork; keep auth/whitelist per Miningcore docs.
+
 ## Security defaults (mainnet)
 - RPC binds to `127.0.0.1` only.
 - HTTP APIs: `eth,net,web3` only (no `personal`, `admin`, `debug`, `txpool`).
