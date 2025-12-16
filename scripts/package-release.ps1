@@ -8,7 +8,7 @@ if (-not $Version) { $Version = "dev" }
 $OutDir = "dist"
 if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Force -Path $OutDir | Out-Null }
 
-$ZipName = "ethernova-$Version-windows.zip"
+$ZipName = "ethernova-$Version-windows-pool.zip"
 $ZipPath = Join-Path $OutDir $ZipName
 $StageDir = Join-Path $OutDir "stage-windows"
 
@@ -18,6 +18,7 @@ New-Item -ItemType Directory -Force -Path $StageDir | Out-Null
 # Copy binaries to stage root
 Copy-Item "bin\ethernova.exe" "$StageDir\ethernova.exe" -Force
 Copy-Item "bin\EthernovaNode.exe" "$StageDir\EthernovaNode.exe" -Force
+Copy-Item "Start-PoolNode.cmd" "$StageDir\Start-PoolNode.cmd" -Force
 
 # Copy genesis files to stage root
 Copy-Item "genesis-dev.json" "$StageDir\genesis-dev.json" -Force
