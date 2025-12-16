@@ -74,6 +74,16 @@ Expected: both nodes report `net.peerCount > 0`.
   `powershell -ExecutionPolicy Bypass -File scripts\test-rpc.ps1 -Endpoint http://127.0.0.1:8545`
 - Point Miningcore to `http://127.0.0.1:8545` with Ethash getWork; keep auth/whitelist per Miningcore docs.
 
+## One-click mainnet node (portable)
+- Download the Windows release ZIP, extract anywhere.
+- Double-click `EthernovaNode.exe`:
+  - Uses local folder: `.\data-mainnet` for state, `.\logs\mainnet-node.log` for logs.
+  - Requires `ethernova.exe` and `genesis-mainnet.json` in the same folder.
+  - RPC binds to localhost (`http://127.0.0.1:8545`, WS `8546`). If 8545/8546 are busy, it falls back to 8547/8548.
+  - No datadir wipe; if not initialized, it runs genesis init once and logs to `logs\init.log` / `logs\init.err.log`.
+- Stop by pressing Enter in the launcher console.
+- For mining, prefer `scripts\run-mainnet-node.ps1 -Mine` (launcher defaults to non-mining for safety).
+
 ## Security defaults (mainnet)
 - RPC binds to `127.0.0.1` only.
 - HTTP APIs: `eth,net,web3` only (no `personal`, `admin`, `debug`, `txpool`).

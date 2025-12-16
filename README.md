@@ -8,6 +8,16 @@
 
 ---
 
+## Windows Quickstart (Double-click)
+1) Download the release ZIP and extract anywhere.
+2) Double-click `EthernovaNode.exe` (launcher) from the extracted folder.
+3) Datadir stays portable in `.\data-mainnet`; logs in `.\logs\mainnet-node.log`.
+4) RPC: `http://127.0.0.1:8545` (WS: `ws://127.0.0.1:8546`). If 8545 is busy, launcher falls back to 8547/8548 and prints it.
+5) To stop: press Enter in the launcher console.
+> For mining/pool mode, use the separate script `scripts\run-mainnet-node.ps1` (keeps RPC on localhost).
+
+---
+
 ## What you get
 
 - **Ethash PoW** execution client for Ethernova
