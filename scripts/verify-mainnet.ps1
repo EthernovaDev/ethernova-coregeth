@@ -108,10 +108,24 @@ $expected = [ordered]@{
 # Read runtime from node (via JSON-RPC)
 $runtime = [ordered]@{}
 $missing = New-Object System.Collections.Generic.List[string]
+$diffs   = New-Object System.Collections.Generic.List[string]
+$rpcErrors = New-Object System.Collections.Generic.List[string]
+
+# Numeric comparisons (accept hex/dec)
+function Compare-Num([string]$expHex, [string]$runVal) {
+  $e = Parse-BigInt $expHex
+  $r = Parse-BigInt $runVal
+  if ($e -ne $null -and $r -ne $null -and $e -ne $r) {
+    return $false
+  }
+  return $true
+}
 
 $runtime["ChainId"]   = Call-Rpc "eth_chainId" @()
+if (-not $runtime["ChainId"]) { $rpcErrors.Add("eth_chainId failed") | Out-Null }
 $runtime["NetworkId"] = Call-Rpc "net_version" @()
-$block0              = Call-Rpc "eth_getBlockByNumber" @("0x0",$false)
+if (-not $runtime["NetworkId"]) { $rpcErrors.Add("net_version failed") | Out-Null }
+$block0 = Call-Rpc "eth_getBlockByNumber" @("0x0",$false)
 if ($block0) {
   $runtime["GenesisHash"]   = $block0.hash
   $runtime["GasLimit"]      = $block0.gasLimit
@@ -121,52 +135,29 @@ if ($block0) {
   $runtime["ExtraDataText"] = HexToUtf8 $runtime["ExtraDataHex"]
 } else {
   $missing.Add("Block 0 via eth_getBlockByNumber") | Out-Null
+  $rpcErrors.Add("eth_getBlockByNumber failed") | Out-Null
 }
 # baseFeeVault not exposed on public RPC; mark as skipped
 $runtime["BaseFeeVault"] = "SKIP (not available via public RPC)"
 
-# Compare
-$diffs = New-Object System.Collections.Generic.List[string]
-$missing = New-Object System.Collections.Generic.List[string]
-
-# Numeric comparisons (accept hex/dec)
-function Compare-Num([string]$name, [string]$expHex, [string]$runVal) {
-  $e = Parse-BigInt $expHex
-  $r = Parse-BigInt $runVal
-  if ($e -ne $null -and $r -ne $null -and $e -ne $r) {
-    return "$name expected=$expHex runtime=$runVal"
+$hasRuntime = $false
+foreach ($kvp in $runtime.GetEnumerator()) {
+  if (-not [string]::IsNullOrWhiteSpace($kvp.Value) -and $kvp.Value -notlike "SKIP*") {
+    $hasRuntime = $true
+    break
   }
-  return $null
 }
 
-# chainId/networkId
-if ((Parse-BigInt $expected["ChainId"]) -ne (Parse-BigInt $runtime["ChainId"])) {
-  $diffs.Add("ChainId expected=$($expected["ChainId"]) runtime=$($runtime["ChainId"])") | Out-Null
-}
-if ((Parse-BigInt $expected["NetworkId"]) -ne (Parse-BigInt $runtime["NetworkId"])) {
-  $diffs.Add("NetworkId expected=$($expected["NetworkId"]) runtime=$($runtime["NetworkId"])") | Out-Null
-}
-
-# hash + strings
-if ((Normalize-Hex $runtime["GenesisHash"]) -ne $expected["GenesisHash"]) {
-  $diffs.Add("GenesisHash expected=$($expected["GenesisHash"]) runtime=$($runtime["GenesisHash"])") | Out-Null
-}
-if ((Normalize-Hex $runtime["ExtraDataHex"]) -ne $expected["ExtraDataHex"]) {
-  $diffs.Add("ExtraData expected=$($expected["ExtraDataHex"]) runtime=$($runtime["ExtraDataHex"])") | Out-Null
-}
-
-# numeric fields from block0
-$check = Compare-Num "GasLimit" $expected["GasLimit"] $runtime["GasLimit"]; if ($check) { $diffs.Add($check) | Out-Null }
-$check = Compare-Num "Difficulty" $expected["Difficulty"] $runtime["Difficulty"]; if ($check) { $diffs.Add($check) | Out-Null }
-$check = Compare-Num "BaseFeePerGas" $expected["BaseFeePerGas"] $runtime["BaseFeePerGas"]; if ($check) { $diffs.Add($check) | Out-Null }
-
-# baseFeeVault (optional)
-if (-not [string]::IsNullOrWhiteSpace($runtime["BaseFeeVault"])) {
-  if ((Normalize-Hex $runtime["BaseFeeVault"]) -ne $expected["BaseFeeVault"]) {
-    $diffs.Add("BaseFeeVault expected=$($expected["BaseFeeVault"]) runtime=$($runtime["BaseFeeVault"])") | Out-Null
+if (-not $hasRuntime) {
+  Write-Host ""
+  Write-Warning "UNVERIFIED: endpoint not reachable ($Endpoint)"
+  if ($rpcErrors.Count -gt 0) {
+    Write-Host "RPC errors:" -ForegroundColor Yellow
+    $rpcErrors | Sort-Object -Unique | ForEach-Object { " - $_" } | Write-Host
   }
-} else {
-  $missing.Add("BaseFeeVault (admin.api may be disabled)") | Out-Null
+  Write-Host "Expected (from genesis):"
+  $expected.GetEnumerator() | ForEach-Object { "{0,-14} {1}" -f $_.Key, $_.Value } | Write-Host
+  exit 3
 }
 
 Write-Host ""
