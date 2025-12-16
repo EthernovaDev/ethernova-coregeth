@@ -25,6 +25,15 @@ powershell -ExecutionPolicy Bypass -File scripts/smoke-test-fees.ps1 -Rpc http:/
 ```
 Pass criteria: type-2 tx mined, gasUsed>0, vault delta == baseFeePerGas * gasUsed.
 > Tip: If you have PowerShell 7 installed, `pwsh` works too; examples above assume Windows PowerShell with `powershell -ExecutionPolicy Bypass -File ...`.
+
+## Local mining (with Miningcore RPC)
+- Start the dev node (mining enabled by default):  
+  `powershell -ExecutionPolicy Bypass -File scripts/init-ethernova.ps1 -Mode dev`
+- RPC stays on `http://127.0.0.1:8545`; keep it localhost-only.
+- Miningcore JSON-RPC target: `http://127.0.0.1:8545` (chainId 77778 in dev). Configure whitelist/auth on Miningcore side.
+- Verify mining:  
+  `Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8545 -Body '{"jsonrpc":"2.0","id":1,"method":"eth_mining","params":[]}' -ContentType "application/json"`
+- Optional checks: `eth_hashrate`, `net_peerCount`.
 ## Useful attach commands
 ```
 bin\ethernova.exe attach --exec "eth.blockNumber" http://127.0.0.1:8545

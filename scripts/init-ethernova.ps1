@@ -41,6 +41,7 @@ $Timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $LogsDir = Join-Path $Root "logs"
 $NodeLog = Join-Path $LogsDir "node.log"
 $NodeErr = Join-Path $LogsDir "node.err.log"
+$HttpPortPreferred = 8545
 
 $Miner = "0x3a38560b66205bb6a31decbcb245450b2f15d4fd"
 $StaticNodesSrc = if ($Mode -eq "mainnet") { Join-Path $RepoRoot "networks\mainnet\static-nodes.json" } else { Join-Path $RepoRoot "networks\dev\static-nodes.json" }
@@ -112,6 +113,24 @@ if (Test-Path $BootnodesFile) {
     if ($fileContent) { $bootnodeList += $fileContent }
 }
 
+function Test-PortFree([int]$port) {
+    try {
+        $listener = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, $port)
+        $listener.Start()
+        $listener.Stop()
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+$HttpPort = $HttpPortPreferred
+while (-not (Test-PortFree $HttpPort)) {
+    $HttpPort++
+    if ($HttpPort -gt ($HttpPortPreferred + 10)) { throw "No free HTTP port found near $HttpPortPreferred" }
+}
+$WsPort = $HttpPort + 1
+
 Write-Host "Starting ethernova node..."
 $apis = if ($Mode -eq "dev") { "eth,net,web3,personal,miner,txpool,admin,debug" } else { "eth,net,web3" }
 $ipcPath = "\\.\pipe\ethernova-$Mode.ipc"
@@ -120,10 +139,10 @@ $args = @(
     "--networkid", "$networkId",
     "--authrpc.addr", "127.0.0.1", "--authrpc.port", "8551",
     "--ipcpath", $ipcPath,
-    "--http", "--http.addr", "127.0.0.1", "--http.port", "8545",
+    "--http", "--http.addr", "127.0.0.1", "--http.port", "$HttpPort",
     "--http.vhosts", "localhost",
     "--http.api", $apis,
-    "--ws", "--ws.addr", "127.0.0.1", "--ws.port", "8546",
+    "--ws", "--ws.addr", "127.0.0.1", "--ws.port", "$WsPort",
     "--ws.api", $apis,
     "--mine",
     "--miner.threads", "1",
@@ -153,3 +172,37 @@ $startInfo = @{
 
 Start-Process @startInfo | Out-Null
 Write-Host "Node started. Logs: $NodeLog / $NodeErr"
+Write-Host "HTTP RPC: http://127.0.0.1:$HttpPort"
+Write-Host "WS RPC:   ws://127.0.0.1:$WsPort"
+
+# Wait for RPC to come up
+$maxWait = 30
+$ready = $false
+$chainIdResp = $null
+for ($i=0; $i -lt $maxWait; $i++) {
+    try {
+        $payload = '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}'
+        $resp = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:$HttpPort" -Body $payload -ContentType "application/json" -TimeoutSec 5
+        if ($resp -and $resp.result) {
+            $chainIdResp = $resp.result
+            $ready = $true
+            break
+        }
+    } catch { Start-Sleep -Seconds 1 }
+    Start-Sleep -Seconds 1
+}
+
+if (-not $ready) {
+    Write-Warning "RPC not reachable on http://127.0.0.1:$HttpPort after $maxWait seconds."
+} else {
+    Write-Host "RPC reachable. eth_chainId = $chainIdResp"
+}
+
+# netstat check
+$netstatOut = netstat -ano | Select-String ":$HttpPort"
+if ($netstatOut) {
+    Write-Host "netstat: port $HttpPort is LISTENING (or in use):"
+    $netstatOut | ForEach-Object { Write-Host "  $_" }
+} else {
+    Write-Warning "netstat could not find a listener on :$HttpPort"
+}
