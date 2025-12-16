@@ -69,3 +69,8 @@ les/transactions.rlp
 /dist/
 /bin/
 /geth.exe
+
+# Big VM test vectors (stored externally)
+tests/files/VMTests/vmInputLimits.json
+tests/files/VMTests/vmInputLimitsTest1.json
+
