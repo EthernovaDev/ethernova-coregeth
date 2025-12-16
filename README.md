@@ -1,101 +1,138 @@
-# Ethernova (Core-Geth fork)
+# Ethernova (CoreGeth fork)
 
 [![Windows Build](https://github.com/EthernovaDev/ethernova-coregeth/actions/workflows/windows.yml/badge.svg)](https://github.com/EthernovaDev/ethernova-coregeth/actions/workflows/windows.yml)
 
-Windows-focused fork of Core-Geth with Ethash PoW, base fee vault redirection, and Ethernova mainnet/dev genesis files.
+**Ethernova is a Windows-focused fork of CoreGeth** built to run the Ethernova EVM network with **Ethash PoW**, Ethernova genesis files, and project-specific operational tooling (PowerShell scripts, launch docs, smoke tests).
 
-Quickstart (Windows):
-- Build: `powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1`
-- Init + run dev (chainId 77778): `powershell -ExecutionPolicy Bypass -File scripts/init-ethernova.ps1 -Mode dev`
-- Mainnet init: `powershell -ExecutionPolicy Bypass -File scripts/init-ethernova.ps1 -Mode mainnet -Bootnodes "<enode://...>"`
-- Verify mainnet fingerprint: `powershell -ExecutionPolicy Bypass -File scripts/verify-mainnet.ps1`
-- Smoke test (dev): `powershell -ExecutionPolicy Bypass -File scripts/smoke-test-fees.ps1`
+> For node operators, pool operators (Miningcore), and devs who need an Ethernova-compatible execution client on Windows.
 
-## CoreGeth: An Ethereum Protocol Provider
+---
 
-> An [ethereum/go-ethereum](https://github.com/ethereum/go-ethereum) downstream effort to make the Ethereum Protocol accessible and extensible for a diverse ecosystem.
+## What you get
 
-Priority is given to reducing opinions around chain configuration, IP-based feature implementations, and API predictability.
-Upstream development from [ethereum/go-ethereum](https://github.com/ethereum/go-ethereum) is merged to this repository regularly,
- usually at every upstream tagged release. Every effort is made to maintain seamless compatibility with upstream source, including compatible RPC, JS, and CLI
- APIs, data storage locations and schemas, and, of course, interoperable node protocols. Applicable bug reports, bug fixes, features, and proposals should be
- made upstream whenever possible.
+- **Ethash PoW** execution client for Ethernova
+- **Ethernova genesis** (mainnet + dev) and init tooling
+- **Base fee vault redirection** (project feature; see docs)
+- **Windows-first scripts** for build/run/verification/smoke tests
+- **RPC smoke tests** for quick validation (chainId/genesis/getWork)
 
-[![OpenRPC](https://img.shields.io/static/v1.svg?label=OpenRPC&message=1.14.0&color=blue)](#openrpc-discovery)
-[![API Reference](https://camo.githubusercontent.com/915b7be44ada53c290eb157634330494ebe3e30a/68747470733a2f2f676f646f632e6f72672f6769746875622e636f6d2f676f6c616e672f6764646f3f7374617475732e737667)](https://godoc.org/github.com/etclabscore/core-geth)
-[![Go Report Card](https://goreportcard.com/badge/github.com/etclabscore/core-geth)](https://goreportcard.com/report/github.com/etclabscore/core-geth)
-[![Travis](https://travis-ci.org/etclabscore/core-geth.svg?branch=master)](https://travis-ci.org/etclabscore/core-geth)
-[![Gitter](https://badges.gitter.im/core-geth/community.svg)](https://gitter.im/core-geth/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+---
 
-## Network/provider comparison
+## Before you begin
 
-Networks supported by the respective go-ethereum packaged `geth` program.
+### Requirements (Windows)
+- Windows 10/11 x64
+- Go 1.21 (per CI); install via `actions/setup-go` equivalent locally
+- Build tools: MSYS2 mingw-w64 (mingw-w64-x86_64-gcc/make/pkgconf)
+- Disk: dev is small; mainnet grows over time
 
-| Ticker | Consensus         | Network                               | core-geth                                                | ethereum/go-ethereum |
-| ---    | ---               | ---                                   | ---                                                      | ---                  |
-| ETC    | :zap:             | Ethereum Classic                      | :heavy_check_mark:                                       |                      |
-| ETH    | :zap:             | Ethereum (Foundation)                 | :heavy_check_mark:                                       | :heavy_check_mark:   |
-| -      | :zap: :handshake: | Private chains                        | :heavy_check_mark:                                       | :heavy_check_mark:   |
-|        | :zap:             | Mordor (Geth+Parity ETH PoW Testnet)  | :heavy_check_mark:                                       |                      |
-|        | :zap:             | Morden (Geth+Parity ETH PoW Testnet)  |                                                          |                      |
-|        | :zap:             | Ropsten (Geth+Parity ETH PoW Testnet) | :heavy_check_mark:                                       | :heavy_check_mark:   |
-|        | :handshake:       | Rinkeby (Geth-only ETH PoA Testnet)   | :heavy_check_mark:                                       | :heavy_check_mark:   |
-|        | :handshake:       | Goerli (Geth+Parity ETH PoA Testnet)  | :heavy_check_mark:                                       | :heavy_check_mark:   |
-|        | :handshake:       | Kovan (Parity-only ETH PoA Testnet)   |                                                          |                      |
-|        |                   | Tobalaba (EWF Testnet)                |                                                          |                      |
-|        |                   | Ephemeral development PoA network     | :heavy_check_mark:                                       | :heavy_check_mark:   |
-| MINTME | :zap:             | MintMe.com Coin                       | :heavy_check_mark:                                       |                      |
+> Toolchain specifics live in the PowerShell scripts and CI workflow; install MSYS2/mingw-w64 to match.
 
-- :zap: = __Proof of Work__
-- :handshake: = __Proof of Authority__
+---
 
-<a name="ellaism-footnote">1</a>: This is originally an [Ellaism
-Project](https://github.com/ellaism). However, A [recent hard
-fork](https://github.com/ellaism/specs/blob/master/specs/2018-0003-wasm-hardfork.md)
-makes Ellaism not feasible to support with go-ethereum any more. Existing
-Ellaism users are asked to switch to
-[Parity](https://github.com/paritytech/parity).
+## Networks
 
-<a name="configuration-capable">2</a>: Network not supported by default, but network configuration is possible. Make a PR!
+| Network            | chainId | networkId | Consensus  | Genesis file            | Block 0 hash                                                |
+|--------------------|--------:|----------:|------------|-------------------------|------------------------------------------------------------|
+| Ethernova Mainnet  | 77777   | 77777     | Ethash PoW | `genesis-mainnet.json`  | `0xc67bd6160c1439360ab14abf7414e8f07186f3bed095121df3f3b66fdc6c2183` |
+| Ethernova Dev      | 77778   | 77778     | Ethash PoW | `genesis-dev.json`      | (derive via verify script after init)                      |
+
+---
+
+## Quickstart (Windows)
+
+### 1) Build
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1
+```
+
+### 2) Dev chain init + run (chainId 77778)
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/init-ethernova.ps1 -Mode dev
+```
+
+### 3) Mainnet init (with bootnodes)
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/init-ethernova.ps1 -Mode mainnet -Bootnodes "<enode://...>"
+```
+
+### 4) Verify mainnet fingerprint
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/verify-mainnet.ps1 -Endpoint http://127.0.0.1:8545
+```
+
+### 5) Smoke test fees (dev)
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/smoke-test-fees.ps1
+```
+
+---
+
+## Run a local mainnet node (Miningcore-friendly)
+
+RPC is bound to localhost; run Miningcore on the same host or via SSH tunnel.
+
+### Start node (example)
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/run-mainnet-node.ps1 -Etherbase <POOL_ADDRESS> -Mine
+```
+
+### Test RPC
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/test-rpc.ps1 -Endpoint http://127.0.0.1:8545
+```
+Expected:
+- `eth_chainId` == 0x12fd1 (77777)
+- Genesis/block0 matches fingerprint
+- `eth_getWork` responds when mining/getWork is enabled
+
+> Full pool-oriented walkthrough: see `docs/LAUNCH.md` (Miningcore quickstart).
+
+---
+
+## Default endpoints & ports
+- HTTP RPC: `http://127.0.0.1:8545`
+- WS RPC: `ws://127.0.0.1:8546` (or HttpPort+1)
+- P2P: `30303`
+- Data dirs: `data-mainnet\`, `data-dev\`
+- Logs: `logs\` (see script outputs)
+
+---
+
+## Bootnodes
+Mainnet bootnodes (enode): add stable entries in `networks/mainnet/bootnodes.txt` and `static-nodes.json`.
+> Provide at least 2–5 stable bootnodes before launch.
+
+---
 
 ## Documentation
+- Launch & operations: `docs/LAUNCH.md`
+- Dev workflow: `docs/DEV.md`
+- Config reference: `docs/CONFIG.md`
+- Key scripts: `scripts/run-mainnet-node.ps1`, `scripts/test-rpc.ps1`, `scripts/init-ethernova.ps1`, `scripts/verify-mainnet.ps1`, `scripts/smoke-test-fees.ps1`
 
-- CoreGeth documentation is available [here](https://etclabscore.github.io/core-geth).
-  + Getting Started [Installation](https://etclabscore.github.io/core-geth/getting-started/installation) and [CLI](https://etclabscore.github.io/core-geth/getting-started/run-cli)
-  + [JSONRPC API](https://etclabscore.github.io/core-geth/JSON-RPC-API)
-  + [Developers](https://etclabscore.github.io/core-geth/developers/build-from-source)
-  + [Tutorials](https://etclabscore.github.io/core-geth/tutorials/private-network)
-- Further [ethereum/go-ethereum](https://github.com/ethereum/go-ethereum) documentation about can be found [here](https://geth.ethereum.org/docs/).
-- Documentation about documentation lives [here](./docs/developers/documentation.md).
+---
 
-## Contribution
+## Troubleshooting
+- RPC works but `eth_getWork` is null: ensure `-Mine`/getWork enabled; hit `http://127.0.0.1:8545`.
+- Genesis mismatch: re-init with correct genesis; verify via `scripts/verify-mainnet.ps1`; avoid reusing wrong datadir.
 
-Thank you for considering to help out with the source code! We welcome contributions
-from anyone on the internet, and are grateful for even the smallest of fixes!
+---
 
-If you'd like to contribute to core-geth, please fork, fix, commit and send a pull request
-for the maintainers to review and merge into the main code base. If you wish to submit
-more complex changes though, please check up with the core devs first on [our gitter channel](https://gitter.im/etclabscore/core-geth)
-to ensure those changes are in line with the general philosophy of the project and/or get
-some early feedback which can make both your efforts much lighter as well as our review
-and merge procedures quick and simple.
+## Contributing
+PRs welcome for Ethernova-specific changes (scripts, docs, chain config, ops hardening). Keep upstream-friendly changes isolated.
 
-Please make sure your contributions adhere to our coding guidelines:
+---
 
- * Code must adhere to the official Go [formatting](https://golang.org/doc/effective_go.html#formatting)
-   guidelines (i.e. uses [gofmt](https://golang.org/cmd/gofmt/)).
- * Code must be documented adhering to the official Go [commentary](https://golang.org/doc/effective_go.html#commentary)
-   guidelines.
- * Pull requests need to be based on and opened against the `master` branch.
- * Commit messages should be prefixed with the package(s) they modify.
-   * E.g. "eth, rpc: make trace configs optional"
+## Upstream / Credits
+Ethernova is a fork of CoreGeth, downstream of `ethereum/go-ethereum`.
+- CoreGeth: https://github.com/etclabscore/core-geth
+- go-ethereum: https://github.com/ethereum/go-ethereum
 
-Please see the [Developers' Guide](https://github.com/ethereum/go-ethereum/wiki/Developers'-Guide)
-for more details on configuring your environment, managing project dependencies, and
-testing procedures.
+---
 
 ## Licensing
+- Library code (outside `cmd/`): GNU LGPL-3.0-or-later
+- Binaries under `cmd/`: GNU GPL-3.0-or-later
 
-- Library code (outside `cmd/`): GNU LGPL-3.0-or-later (see `LICENSE` and `COPYING.LESSER`).
-- Binaries under `cmd/`: GNU GPL-3.0-or-later (see `COPYING`).
-Both license texts are shipped verbatim for GitHub detection; this fork remains compatible with upstream Core-Geth licensing.
+See `LICENSE`, `COPYING`, and `COPYING.LESSER`.
