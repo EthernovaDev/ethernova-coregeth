@@ -13,6 +13,7 @@ $ZipPath = Join-Path $OutDir $ZipName
 
 $items = @(
     "bin\ethernova.exe",
+    "bin\EthernovaNode.exe",
     "genesis-dev.json",
     "genesis-mainnet.json",
     "VERSION",

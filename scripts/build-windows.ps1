@@ -16,5 +16,7 @@ $env:CGO_ENABLED = "1"
 if (-not (Test-Path "bin")) { New-Item -ItemType Directory -Force -Path "bin" | Out-Null }
 
 go build -o "bin\ethernova.exe" .\cmd\geth
+Write-Host "Building EthernovaNode.exe (launcher)..."
+go build -o "bin\EthernovaNode.exe" .\cmd\ethernova-launcher
 
-Write-Host "Built bin\ethernova.exe"
+Write-Host "Built bin\ethernova.exe and bin\EthernovaNode.exe"
