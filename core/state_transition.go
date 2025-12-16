@@ -491,6 +491,23 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		st.state.AddBalance(st.evm.Context.Coinbase, fee)
 	}
 
+	if eip1559f && st.evm.Context.BaseFee != nil {
+		if vault := st.evm.ChainConfig().GetBaseFeeVault(); vault != nil {
+			active := true
+			if fromBlock := st.evm.ChainConfig().GetBaseFeeVaultFromBlock(); fromBlock != nil {
+				if st.evm.Context.BlockNumber == nil || st.evm.Context.BlockNumber.Cmp(new(big.Int).SetUint64(*fromBlock)) < 0 {
+					active = false
+				}
+			}
+			if active {
+				base := new(uint256.Int).SetUint64(st.gasUsed())
+				baseFeePerGas, _ := uint256.FromBig(st.evm.Context.BaseFee)
+				base.Mul(base, baseFeePerGas)
+				st.state.AddBalance(*vault, base)
+			}
+		}
+	}
+
 	return &ExecutionResult{
 		UsedGas:     st.gasUsed(),
 		RefundedGas: gasRefund,

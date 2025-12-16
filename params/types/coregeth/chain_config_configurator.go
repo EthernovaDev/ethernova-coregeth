@@ -141,6 +141,33 @@ func (c *CoreGethChainConfig) SetMaxCodeSize(n *uint64) error {
 	return internal.GlobalConfigurator().SetMaxCodeSize(n)
 }
 
+func (c *CoreGethChainConfig) GetBaseFeeVault() *common.Address {
+	if c.BaseFeeVault == nil {
+		return nil
+	}
+	addr := *c.BaseFeeVault
+	return &addr
+}
+
+func (c *CoreGethChainConfig) SetBaseFeeVault(a *common.Address) error {
+	if a == nil {
+		c.BaseFeeVault = nil
+		return nil
+	}
+	addr := *a
+	c.BaseFeeVault = &addr
+	return nil
+}
+
+func (c *CoreGethChainConfig) GetBaseFeeVaultFromBlock() *uint64 {
+	return bigNewU64(c.BaseFeeVaultFromBlock)
+}
+
+func (c *CoreGethChainConfig) SetBaseFeeVaultFromBlock(n *uint64) error {
+	c.BaseFeeVaultFromBlock = setBig(c.BaseFeeVaultFromBlock, n)
+	return nil
+}
+
 func (c *CoreGethChainConfig) GetElasticityMultiplier() uint64 {
 	return internal.GlobalConfigurator().GetElasticityMultiplier()
 }

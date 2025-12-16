@@ -103,6 +103,9 @@ type ChainConfig struct {
 	ecbp1100DeactivateTransition *big.Int
 
 	Lyra2NonceTransitionBlock *big.Int `json:"lyra2NonceTransitionBlock,omitempty"`
+
+	BaseFeeVault          *common.Address `json:"baseFeeVault,omitempty"`
+	BaseFeeVaultFromBlock *big.Int        `json:"baseFeeVaultFromBlock,omitempty"`
 }
 
 // networkNames are user friendly names to use in the chain spec banner.

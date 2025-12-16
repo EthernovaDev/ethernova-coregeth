@@ -74,6 +74,10 @@ type ProtocolSpecifier interface {
 	SetElasticityMultiplier(n uint64) error
 	GetBaseFeeChangeDenominator() uint64
 	SetBaseFeeChangeDenominator(n uint64) error
+	GetBaseFeeVault() *common.Address
+	SetBaseFeeVault(a *common.Address) error
+	GetBaseFeeVaultFromBlock() *uint64
+	SetBaseFeeVaultFromBlock(n *uint64) error
 
 	// Be careful with EIP2.
 	// It is a messy EIP, specifying diverse changes, like difficulty, intrinsic gas costs for contract creation,

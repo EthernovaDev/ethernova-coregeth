@@ -60,3 +60,12 @@ les/transactions.rlp
 /MANIFEST
 /manifest.json
 /site
+
+# Ethernova local artifacts
+/data-dev/
+/data-mainnet/
+/data-node2-*/
+/logs/
+/dist/
+/bin/
+/geth.exe
