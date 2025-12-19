@@ -17,8 +17,8 @@ Incluye:
 
 1) Extrae el tarball del release:
 ```bash
-tar -xzf ethernova-<version>-linux-amd64-vps.tar.gz
-cd ethernova-<version>-linux-amd64-vps
+tar -xzf ethernova-<tag>-linux-amd64-vps.tar.gz
+cd ethernova-<tag>-linux-amd64-vps
 ```
 
 2) Inicializa el datadir (no borra datos si ya existe):

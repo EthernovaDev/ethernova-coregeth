@@ -3,7 +3,7 @@ name: Release Linux amd64 (VPS bundle)
 on:
   push:
     tags:
-      - "v*"
+      - "v*-nova"
   workflow_dispatch:
 
 permissions:
