@@ -28,7 +28,7 @@ const (
 const (
 	chainIDInitHex        = "0x6009600c60003960096000f34660005260206000f3"
 	childInitHex          = "0x600a600c600039600a6000f3602a60005260206000f3"
-	deployerInitPrefixHex = "0x602e600c600039602e6000f3601660186000396000600060166001f560005260206000f3"
+	deployerInitPrefixHex = "0x602e600c600039602e6000f3601660186000396001601660006000f560005260206000f3"
 )
 
 const (
@@ -136,13 +136,13 @@ func checkChainID(ctx context.Context, client *ethclient.Client, privKey *ecdsa.
 	if err != nil {
 		return false, fmt.Sprintf("nonce error: %v", err)
 	}
-	gasPrice, err := client.SuggestGasPrice(ctx)
+	gasPrice, err := suggestGasPrice(ctx, client)
 	if err != nil {
 		return false, fmt.Sprintf("gas price error: %v", err)
 	}
 
 	chainIDInit := common.FromHex(chainIDInitHex)
-	tx, err := signAndSendTx(ctx, client, privKey, chainID, nonce, nil, chainIDInit, deployGasLimit, gasPrice)
+	tx, err := signAndSendTx(ctx, client, privKey, chainID, nonce, nil, big.NewInt(0), chainIDInit, deployGasLimit, gasPrice)
 	if err != nil {
 		return false, fmt.Sprintf("deploy tx error: %v", err)
 	}
@@ -150,7 +150,7 @@ func checkChainID(ctx context.Context, client *ethclient.Client, privKey *ecdsa.
 	if err != nil {
 		return false, fmt.Sprintf("deploy receipt error: %v", err)
 	}
-	if receipt.Status != types.ReceiptStatusSuccessful {
+	if receiptStatusAvailable(receipt) && receipt.Status != types.ReceiptStatusSuccessful {
 		return false, fmt.Sprintf("deploy tx status %d", receipt.Status)
 	}
 	if receipt.ContractAddress == (common.Address{}) {
@@ -225,7 +225,7 @@ func checkTStore(ctx context.Context, client *ethclient.Client, privKey *ecdsa.P
 
 func checkSelfdestruct(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, preFork bool) (bool, string) {
 	fromAddr := crypto.PubkeyToAddress(privKey.PublicKey)
-	gasPrice, err := client.SuggestGasPrice(ctx)
+	gasPrice, err := suggestGasPrice(ctx, client)
 	if err != nil {
 		return false, fmt.Sprintf("gas price error: %v", err)
 	}
@@ -240,7 +240,7 @@ func checkSelfdestruct(ctx context.Context, client *ethclient.Client, privKey *e
 	if err != nil {
 		return false, fmt.Sprintf("deploy error: %v", err)
 	}
-	if deployReceipt.Status != types.ReceiptStatusSuccessful {
+	if receiptStatusAvailable(deployReceipt) && deployReceipt.Status != types.ReceiptStatusSuccessful {
 		return false, fmt.Sprintf("deploy tx status %d", deployReceipt.Status)
 	}
 	if deployReceipt.ContractAddress == (common.Address{}) {
@@ -259,7 +259,7 @@ func checkSelfdestruct(ctx context.Context, client *ethclient.Client, privKey *e
 	if err != nil {
 		return false, fmt.Sprintf("nonce error: %v", err)
 	}
-	callTx, err := signAndSendTx(ctx, client, privKey, chainID, nonce, &deployReceipt.ContractAddress, nil, callGasLimit, gasPrice)
+	callTx, err := signAndSendTx(ctx, client, privKey, chainID, nonce, &deployReceipt.ContractAddress, big.NewInt(0), nil, callGasLimit, gasPrice)
 	if err != nil {
 		return false, fmt.Sprintf("selfdestruct tx error: %v", err)
 	}
@@ -267,7 +267,7 @@ func checkSelfdestruct(ctx context.Context, client *ethclient.Client, privKey *e
 	if err != nil {
 		return false, fmt.Sprintf("selfdestruct receipt error: %v", err)
 	}
-	if callReceipt.Status != types.ReceiptStatusSuccessful {
+	if receiptStatusAvailable(callReceipt) && callReceipt.Status != types.ReceiptStatusSuccessful {
 		return false, fmt.Sprintf("selfdestruct tx status %d", callReceipt.Status)
 	}
 
@@ -292,7 +292,7 @@ func checkSelfdestruct(ctx context.Context, client *ethclient.Client, privKey *e
 func checkCreate2(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, preFork bool) (bool, string) {
 	fromAddr := crypto.PubkeyToAddress(privKey.PublicKey)
 
-	gasPrice, err := client.SuggestGasPrice(ctx)
+	gasPrice, err := suggestGasPrice(ctx, client)
 	if err != nil {
 		return false, fmt.Sprintf("gas price error: %v", err)
 	}
@@ -304,7 +304,7 @@ func checkCreate2(ctx context.Context, client *ethclient.Client, privKey *ecdsa.
 	if err != nil {
 		return false, fmt.Sprintf("nonce error: %v", err)
 	}
-	deployTx, err := signAndSendTx(ctx, client, privKey, chainID, nonce, nil, deployerInit, deployGasLimit, gasPrice)
+	deployTx, err := signAndSendTx(ctx, client, privKey, chainID, nonce, nil, big.NewInt(0), deployerInit, deployGasLimit, gasPrice)
 	if err != nil {
 		return false, fmt.Sprintf("deployer deploy error: %v", err)
 	}
@@ -312,7 +312,7 @@ func checkCreate2(ctx context.Context, client *ethclient.Client, privKey *ecdsa.
 	if err != nil {
 		return false, fmt.Sprintf("deployer receipt error: %v", err)
 	}
-	if deployReceipt.Status != types.ReceiptStatusSuccessful {
+	if receiptStatusAvailable(deployReceipt) && deployReceipt.Status != types.ReceiptStatusSuccessful {
 		return false, fmt.Sprintf("deployer tx status %d", deployReceipt.Status)
 	}
 	if deployReceipt.ContractAddress == (common.Address{}) {
@@ -323,7 +323,7 @@ func checkCreate2(ctx context.Context, client *ethclient.Client, privKey *ecdsa.
 	if err != nil {
 		return false, fmt.Sprintf("nonce error: %v", err)
 	}
-	create2Tx, err := signAndSendTx(ctx, client, privKey, chainID, nonce, &deployReceipt.ContractAddress, nil, callGasLimit, gasPrice)
+	create2Tx, err := signAndSendTx(ctx, client, privKey, chainID, nonce, &deployReceipt.ContractAddress, big.NewInt(1), nil, callGasLimit, gasPrice)
 	if err != nil {
 		return false, fmt.Sprintf("create2 tx error: %v", err)
 	}
@@ -343,16 +343,19 @@ func checkCreate2(ctx context.Context, client *ethclient.Client, privKey *ecdsa.
 	}
 
 	if preFork {
-		if create2Receipt.Status == types.ReceiptStatusSuccessful && len(code) > 0 {
+		if (!receiptStatusAvailable(create2Receipt) || create2Receipt.Status == types.ReceiptStatusSuccessful) && len(code) > 0 {
 			return false, "unexpected CREATE2 success before fork"
 		}
-		if create2Receipt.Status == types.ReceiptStatusSuccessful && len(code) == 0 {
+		if (!receiptStatusAvailable(create2Receipt) || create2Receipt.Status == types.ReceiptStatusSuccessful) && len(code) == 0 {
 			return false, "unexpected CREATE2 success before fork (child code empty)"
 		}
-		return false, fmt.Sprintf("expected pre-fork failure: receipt status %d", create2Receipt.Status)
+		if receiptStatusAvailable(create2Receipt) {
+			return false, fmt.Sprintf("expected pre-fork failure: receipt status %d", create2Receipt.Status)
+		}
+		return false, "expected pre-fork failure"
 	}
 
-	if create2Receipt.Status != types.ReceiptStatusSuccessful {
+	if receiptStatusAvailable(create2Receipt) && create2Receipt.Status != types.ReceiptStatusSuccessful {
 		return false, fmt.Sprintf("create2 tx status %d", create2Receipt.Status)
 	}
 	if len(code) == 0 {
@@ -364,7 +367,7 @@ func checkCreate2(ctx context.Context, client *ethclient.Client, privKey *ecdsa.
 
 func checkOpcodeCall(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, preFork bool, initCode []byte, expected []byte) (bool, string) {
 	fromAddr := crypto.PubkeyToAddress(privKey.PublicKey)
-	gasPrice, err := client.SuggestGasPrice(ctx)
+	gasPrice, err := suggestGasPrice(ctx, client)
 	if err != nil {
 		return false, fmt.Sprintf("gas price error: %v", err)
 	}
@@ -373,7 +376,7 @@ func checkOpcodeCall(ctx context.Context, client *ethclient.Client, privKey *ecd
 	if err != nil {
 		return false, fmt.Sprintf("deploy error: %v", err)
 	}
-	if receipt.Status != types.ReceiptStatusSuccessful {
+	if receiptStatusAvailable(receipt) && receipt.Status != types.ReceiptStatusSuccessful {
 		if preFork {
 			return false, fmt.Sprintf("expected pre-fork failure: deploy status %d", receipt.Status)
 		}
@@ -444,18 +447,18 @@ func deployContract(ctx context.Context, client *ethclient.Client, privKey *ecds
 	if err != nil {
 		return nil, err
 	}
-	tx, err := signAndSendTx(ctx, client, privKey, chainID, nonce, nil, initCode, deployGasLimit, gasPrice)
+	tx, err := signAndSendTx(ctx, client, privKey, chainID, nonce, nil, big.NewInt(0), initCode, deployGasLimit, gasPrice)
 	if err != nil {
 		return nil, err
 	}
 	return waitMined(ctx, client, tx)
 }
 
-func signAndSendTx(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, nonce uint64, to *common.Address, data []byte, gasLimit uint64, gasPrice *big.Int) (*types.Transaction, error) {
+func signAndSendTx(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, nonce uint64, to *common.Address, value *big.Int, data []byte, gasLimit uint64, gasPrice *big.Int) (*types.Transaction, error) {
 	tx := types.NewTx(&types.LegacyTx{
 		Nonce:    nonce,
 		To:       to,
-		Value:    big.NewInt(0),
+		Value:    value,
 		Gas:      gasLimit,
 		GasPrice: gasPrice,
 		Data:     data,
@@ -479,4 +482,23 @@ func waitMined(ctx context.Context, client *ethclient.Client, tx *types.Transact
 		return nil, fmt.Errorf("receipt not found")
 	}
 	return receipt, nil
+}
+
+func suggestGasPrice(ctx context.Context, client *ethclient.Client) (*big.Int, error) {
+	gasPrice, err := client.SuggestGasPrice(ctx)
+	if err != nil {
+		return nil, err
+	}
+	header, err := client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	if header.BaseFee != nil && gasPrice.Cmp(header.BaseFee) < 0 {
+		return new(big.Int).Set(header.BaseFee), nil
+	}
+	return gasPrice, nil
+}
+
+func receiptStatusAvailable(receipt *types.Receipt) bool {
+	return len(receipt.PostState) == 0
 }

@@ -1,7 +1,7 @@
 {
   "config": {
-    "chainId": 77777,
-    "networkId": 77777,
+    "chainId": 177777,
+    "networkId": 177777,
     "supportedProtocolVersions": [68],
     "eip155Block": 0,
     "eip2565FBlock": 0,
@@ -9,22 +9,22 @@
     "eip2929FBlock": 0,
     "eip2930FBlock": 0,
     "eip1559FBlock": 0,
-    "eip3198FBlock": 60000,
-    "eip1014FBlock": 60000,
-    "eip1344FBlock": 60000,
-    "eip145FBlock": 60000,
-    "eip1052FBlock": 60000,
-    "eip152FBlock": 60000,
-    "eip1108FBlock": 60000,
-    "eip1884FBlock": 60000,
-    "eip2028FBlock": 60000,
-    "eip2200FBlock": 60000,
-    "eip3651FBlock": 60000,
-    "eip3855FBlock": 60000,
-    "eip3860FBlock": 60000,
-    "eip1153FBlock": 60000,
-    "eip5656FBlock": 60000,
-    "eip6780FBlock": 60000,
+    "eip3198FBlock": 20,
+    "eip1014FBlock": 20,
+    "eip1344FBlock": 20,
+    "eip145FBlock": 20,
+    "eip1052FBlock": 20,
+    "eip152FBlock": 20,
+    "eip1108FBlock": 20,
+    "eip1884FBlock": 20,
+    "eip2028FBlock": 20,
+    "eip2200FBlock": 20,
+    "eip3651FBlock": 20,
+    "eip3855FBlock": 20,
+    "eip3860FBlock": 20,
+    "eip1153FBlock": 20,
+    "eip5656FBlock": 20,
+    "eip6780FBlock": 20,
     "baseFeeVault": "0x3a38560b66205bb6a31decbcb245450b2f15d4fd",
     "baseFeeVaultFromBlock": 0,
     "blockReward": {
@@ -38,11 +38,15 @@
   },
   "nonce": "0x0",
   "timestamp": "0x0",
-  "extraData": "0x4e4f5641204d41494e4e4554",
+  "extraData": "0x4e4f5641204445564e4554",
   "gasLimit": "0x1c9c380",
-  "difficulty": "0x400000",
+  "difficulty": "0x1",
   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "coinbase": "0x3a38560b66205bb6a31decbcb245450b2f15d4fd",
   "baseFeePerGas": "0x3b9aca00",
-  "alloc": {}
+  "alloc": {
+    "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": {
+      "balance": "0x3635c9adc5dea00000"
+    }
+  }
 }

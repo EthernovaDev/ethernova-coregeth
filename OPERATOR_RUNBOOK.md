@@ -14,7 +14,7 @@ This runbook describes how to safely upgrade your node to activate new EVM featu
 
 **Modern EVM fork**
 - Includes the minimal DEX fork plus Shanghai/Cancun opcode upgrades commonly required by Solidity 0.8.20+.
-- EIP-3651 (warm COINBASE), EIP-3855 (PUSH0), EIP-3860 (initcode limits), EIP-1153 (transient storage), EIP-5656 (MCOPY), EIP-6780 (SELFDESTRUCT changes).
+- EIP-3198 (BASEFEE opcode), EIP-3651 (warm COINBASE), EIP-3855 (PUSH0), EIP-3860 (initcode limits), EIP-1153 (transient storage), EIP-5656 (MCOPY), EIP-6780 (SELFDESTRUCT changes).
 - Does not enable PoS/Merge features or PoS-specific upgrades (no TTD, no EIP-4895 withdrawals, no EIP-4788, no EIP-4844/7516 blobs).
 
 ---
