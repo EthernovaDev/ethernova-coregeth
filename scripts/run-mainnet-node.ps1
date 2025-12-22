@@ -2,6 +2,8 @@ param(
     [string]$DataDir = "",
     [int]$HttpPort = 8545,
     [int]$WsPort = 8546,
+    [string]$BootnodesFile = "",
+    [string]$Bootnodes = "",
     [switch]$Mine
 )
 
@@ -43,6 +45,18 @@ if (-not (Test-Path $DataDir)) {
     New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
 }
 
+$BootnodeList = @()
+if ($Bootnodes) {
+    $BootnodeList = $Bootnodes -split ","
+} else {
+    if (-not $BootnodesFile) {
+        $BootnodesFile = Join-Path $RepoRoot "network\bootnodes.txt"
+    }
+    if (Test-Path $BootnodesFile) {
+        $BootnodeList = Get-Content $BootnodesFile | ForEach-Object { $_.Trim() } | Where-Object { $_ -and -not $_.StartsWith("#") }
+    }
+}
+
 $Args = @(
     "--datadir", $DataDir,
     "--networkid", "77777",
@@ -51,6 +65,10 @@ $Args = @(
     "--ws", "--ws.addr", "127.0.0.1", "--ws.port", "$WsPort",
     "--ws.api", "eth,net,web3,debug"
 )
+
+if ($BootnodeList.Count -gt 0) {
+    $Args += @("--bootnodes", ($BootnodeList -join ","))
+}
 
 if ($Mine) {
     $Args += @("--mine")

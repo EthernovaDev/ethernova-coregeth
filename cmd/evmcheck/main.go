@@ -26,16 +26,15 @@ const (
 )
 
 const (
-	chainIDInitHex        = "0x6009600c60003960096000f34660005260206000f3"
-	childInitHex          = "0x600a600c600039600a6000f3602a60005260206000f3"
-	deployerInitPrefixHex = "0x602e600c600039602e6000f3601660186000396001601660006000f560005260206000f3"
+	chainIDInitHex  = "0x6009600c60003960096000f34660005260206000f3"
+	childRuntimeHex = "0x602a60005260206000f3"
 )
 
 const (
 	push0RuntimeHex  = "0x5f5f5260205ff3"
 	mcopyExpectedHex = "0x11223344556677889900aabbccddeeff00112233445566778899aabbccddeeff"
-	mcopyRuntimeHex  = "0x7f11223344556677889900aabbccddeeff00112233445566778899aabbccddeeff5f5260205f60205e60206020f3"
-	tstoreRuntimeHex = "0x602a5f5d5f5c5f5260205ff3"
+	mcopyRuntimeHex  = "0x7f11223344556677889900aabbccddeeff00112233445566778899aabbccddeeff6000526020600060205e60206020f3"
+	tstoreRuntimeHex = "0x602a60005d60005c60005260206000f3"
 )
 
 func main() {
@@ -64,7 +63,7 @@ func main() {
 	}
 	defer client.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
 	defer cancel()
 
 	header, err := client.HeaderByNumber(ctx, nil)
@@ -142,11 +141,11 @@ func checkChainID(ctx context.Context, client *ethclient.Client, privKey *ecdsa.
 	}
 
 	chainIDInit := common.FromHex(chainIDInitHex)
-	tx, err := signAndSendTx(ctx, client, privKey, chainID, nonce, nil, big.NewInt(0), chainIDInit, deployGasLimit, gasPrice)
+	tx, startBlock, err := signAndSendTx(ctx, client, privKey, chainID, nonce, nil, big.NewInt(0), chainIDInit, deployGasLimit, gasPrice)
 	if err != nil {
 		return false, fmt.Sprintf("deploy tx error: %v", err)
 	}
-	receipt, err := waitMined(ctx, client, tx)
+	receipt, err := waitMined(ctx, client, tx, startBlock)
 	if err != nil {
 		return false, fmt.Sprintf("deploy receipt error: %v", err)
 	}
@@ -165,7 +164,13 @@ func checkChainID(ctx context.Context, client *ethclient.Client, privKey *ecdsa.
 	out, err := client.CallContract(ctx, callMsg, nil)
 	if err != nil {
 		if preFork {
-			return false, fmt.Sprintf("expected pre-fork failure: %v", err)
+			if isInvalidOpcodeError(err) {
+				return false, "expected pre-fork failure: invalid opcode (CHAINID/0x46)"
+			}
+			if isRevertOrOOGError(err) {
+				return false, fmt.Sprintf("expected pre-fork failure: %v", err)
+			}
+			return false, fmt.Sprintf("unexpected pre-fork failure: %v", err)
 		}
 		return false, fmt.Sprintf("call error: %v", err)
 	}
@@ -197,7 +202,7 @@ func checkPush0(ctx context.Context, client *ethclient.Client, privKey *ecdsa.Pr
 		return false, fmt.Sprintf("initcode error: %v", err)
 	}
 	expected := make([]byte, 32)
-	return checkOpcodeCall(ctx, client, privKey, chainID, preFork, initCode, expected)
+	return checkOpcodeCall(ctx, client, privKey, chainID, preFork, initCode, expected, "PUSH0")
 }
 
 func checkMCopy(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, preFork bool) (bool, string) {
@@ -210,7 +215,7 @@ func checkMCopy(ctx context.Context, client *ethclient.Client, privKey *ecdsa.Pr
 	if len(expected) != 32 {
 		return false, fmt.Sprintf("expected output length %d", len(expected))
 	}
-	return checkOpcodeCall(ctx, client, privKey, chainID, preFork, initCode, expected)
+	return checkOpcodeCall(ctx, client, privKey, chainID, preFork, initCode, expected, "MCOPY")
 }
 
 func checkTStore(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, preFork bool) (bool, string) {
@@ -220,7 +225,7 @@ func checkTStore(ctx context.Context, client *ethclient.Client, privKey *ecdsa.P
 		return false, fmt.Sprintf("initcode error: %v", err)
 	}
 	expected := common.LeftPadBytes([]byte{0x2a}, 32)
-	return checkOpcodeCall(ctx, client, privKey, chainID, preFork, initCode, expected)
+	return checkOpcodeCall(ctx, client, privKey, chainID, preFork, initCode, expected, "TSTORE/TLOAD")
 }
 
 func checkSelfdestruct(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, preFork bool) (bool, string) {
@@ -259,11 +264,11 @@ func checkSelfdestruct(ctx context.Context, client *ethclient.Client, privKey *e
 	if err != nil {
 		return false, fmt.Sprintf("nonce error: %v", err)
 	}
-	callTx, err := signAndSendTx(ctx, client, privKey, chainID, nonce, &deployReceipt.ContractAddress, big.NewInt(0), nil, callGasLimit, gasPrice)
+	callTx, callStart, err := signAndSendTx(ctx, client, privKey, chainID, nonce, &deployReceipt.ContractAddress, big.NewInt(0), nil, callGasLimit, gasPrice)
 	if err != nil {
 		return false, fmt.Sprintf("selfdestruct tx error: %v", err)
 	}
-	callReceipt, err := waitMined(ctx, client, callTx)
+	callReceipt, err := waitMined(ctx, client, callTx, callStart)
 	if err != nil {
 		return false, fmt.Sprintf("selfdestruct receipt error: %v", err)
 	}
@@ -297,18 +302,33 @@ func checkCreate2(ctx context.Context, client *ethclient.Client, privKey *ecdsa.
 		return false, fmt.Sprintf("gas price error: %v", err)
 	}
 
-	deployerInitHex := deployerInitPrefixHex + strings.TrimPrefix(childInitHex, "0x")
-	deployerInit := common.FromHex(deployerInitHex)
+	childRuntime := common.FromHex(childRuntimeHex)
+	if len(childRuntime) == 0 {
+		return false, "child runtime is empty"
+	}
+	childInit, err := buildInitCode(childRuntime)
+	if err != nil {
+		return false, fmt.Sprintf("child initcode error: %v", err)
+	}
+	salt := common.BigToHash(big.NewInt(1))
+	deployerRuntime, err := buildCreate2Runtime(childInit, salt, 0)
+	if err != nil {
+		return false, fmt.Sprintf("deployer runtime error: %v", err)
+	}
+	deployerInit, err := buildInitCode(deployerRuntime)
+	if err != nil {
+		return false, fmt.Sprintf("deployer initcode error: %v", err)
+	}
 
 	nonce, err := client.PendingNonceAt(ctx, fromAddr)
 	if err != nil {
 		return false, fmt.Sprintf("nonce error: %v", err)
 	}
-	deployTx, err := signAndSendTx(ctx, client, privKey, chainID, nonce, nil, big.NewInt(0), deployerInit, deployGasLimit, gasPrice)
+	deployTx, deployStart, err := signAndSendTx(ctx, client, privKey, chainID, nonce, nil, big.NewInt(0), deployerInit, deployGasLimit, gasPrice)
 	if err != nil {
 		return false, fmt.Sprintf("deployer deploy error: %v", err)
 	}
-	deployReceipt, err := waitMined(ctx, client, deployTx)
+	deployReceipt, err := waitMined(ctx, client, deployTx, deployStart)
 	if err != nil {
 		return false, fmt.Sprintf("deployer receipt error: %v", err)
 	}
@@ -319,53 +339,64 @@ func checkCreate2(ctx context.Context, client *ethclient.Client, privKey *ecdsa.
 		return false, "deployer missing contract address"
 	}
 
+	expectedAddr := crypto.CreateAddress2(deployReceipt.ContractAddress, salt, crypto.Keccak256(childInit))
+
+	callAddr, callErr := callCreate2(ctx, client, fromAddr, deployReceipt.ContractAddress)
+
 	nonce, err = client.PendingNonceAt(ctx, fromAddr)
 	if err != nil {
 		return false, fmt.Sprintf("nonce error: %v", err)
 	}
-	create2Tx, err := signAndSendTx(ctx, client, privKey, chainID, nonce, &deployReceipt.ContractAddress, big.NewInt(1), nil, callGasLimit, gasPrice)
+	create2Tx, create2Start, err := signAndSendTx(ctx, client, privKey, chainID, nonce, &deployReceipt.ContractAddress, big.NewInt(0), nil, callGasLimit, gasPrice)
 	if err != nil {
 		return false, fmt.Sprintf("create2 tx error: %v", err)
 	}
-	create2Receipt, err := waitMined(ctx, client, create2Tx)
+	create2Receipt, err := waitMined(ctx, client, create2Tx, create2Start)
 	if err != nil {
 		return false, fmt.Sprintf("create2 receipt error: %v", err)
 	}
 
-	childInit := common.FromHex(childInitHex)
-	childInitHash := crypto.Keccak256Hash(childInit)
-	salt := common.BigToHash(big.NewInt(1))
-	childAddr := crypto.CreateAddress2(deployReceipt.ContractAddress, salt, childInitHash.Bytes())
-
-	code, err := client.CodeAt(ctx, childAddr, nil)
-	if err != nil {
-		return false, fmt.Sprintf("getCode error: %v", err)
-	}
-
 	if preFork {
-		if (!receiptStatusAvailable(create2Receipt) || create2Receipt.Status == types.ReceiptStatusSuccessful) && len(code) > 0 {
+		if receiptStatusAvailable(create2Receipt) && create2Receipt.Status == types.ReceiptStatusFailed {
+			return false, "expected pre-fork failure: tx status 0"
+		}
+		if callErr != nil {
+			if isInvalidOpcodeError(callErr) {
+				return false, "expected pre-fork failure: invalid opcode (CREATE2/0xF5)"
+			}
+			if isRevertOrOOGError(callErr) {
+				return false, fmt.Sprintf("expected pre-fork failure: %v", callErr)
+			}
+			return false, fmt.Sprintf("unexpected pre-fork failure: %v", callErr)
+		}
+		if receiptStatusAvailable(create2Receipt) && create2Receipt.Status == types.ReceiptStatusSuccessful {
 			return false, "unexpected CREATE2 success before fork"
 		}
-		if (!receiptStatusAvailable(create2Receipt) || create2Receipt.Status == types.ReceiptStatusSuccessful) && len(code) == 0 {
-			return false, "unexpected CREATE2 success before fork (child code empty)"
-		}
-		if receiptStatusAvailable(create2Receipt) {
-			return false, fmt.Sprintf("expected pre-fork failure: receipt status %d", create2Receipt.Status)
-		}
-		return false, "expected pre-fork failure"
+		return false, "unexpected CREATE2 success before fork"
 	}
 
 	if receiptStatusAvailable(create2Receipt) && create2Receipt.Status != types.ReceiptStatusSuccessful {
 		return false, fmt.Sprintf("create2 tx status %d", create2Receipt.Status)
 	}
-	if len(code) == 0 {
-		return false, "child code is empty"
+	if callErr != nil {
+		return false, fmt.Sprintf("create2 call error: %v", callErr)
+	}
+	if callAddr != expectedAddr {
+		return false, fmt.Sprintf("create2 address mismatch got %s want %s", callAddr.Hex(), expectedAddr.Hex())
+	}
+
+	code, err := client.CodeAt(ctx, expectedAddr, nil)
+	if err != nil {
+		return false, fmt.Sprintf("getCode error: %v", err)
+	}
+	if !bytes.Equal(code, childRuntime) {
+		return false, fmt.Sprintf("child code mismatch got 0x%s want 0x%s", common.Bytes2Hex(code), common.Bytes2Hex(childRuntime))
 	}
 
 	return true, ""
 }
 
-func checkOpcodeCall(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, preFork bool, initCode []byte, expected []byte) (bool, string) {
+func checkOpcodeCall(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, preFork bool, initCode []byte, expected []byte, opcodeName string) (bool, string) {
 	fromAddr := crypto.PubkeyToAddress(privKey.PublicKey)
 	gasPrice, err := suggestGasPrice(ctx, client)
 	if err != nil {
@@ -394,7 +425,13 @@ func checkOpcodeCall(ctx context.Context, client *ethclient.Client, privKey *ecd
 	out, err := client.CallContract(ctx, callMsg, nil)
 	if err != nil {
 		if preFork {
-			return false, fmt.Sprintf("expected pre-fork failure: %v", err)
+			if isInvalidOpcodeError(err) {
+				return false, fmt.Sprintf("expected pre-fork failure: invalid opcode (%s)", opcodeName)
+			}
+			if isRevertOrOOGError(err) {
+				return false, fmt.Sprintf("expected pre-fork failure: %v", err)
+			}
+			return false, fmt.Sprintf("unexpected pre-fork failure: %v", err)
 		}
 		return false, fmt.Sprintf("call error: %v", err)
 	}
@@ -447,14 +484,14 @@ func deployContract(ctx context.Context, client *ethclient.Client, privKey *ecds
 	if err != nil {
 		return nil, err
 	}
-	tx, err := signAndSendTx(ctx, client, privKey, chainID, nonce, nil, big.NewInt(0), initCode, deployGasLimit, gasPrice)
+	tx, startBlock, err := signAndSendTx(ctx, client, privKey, chainID, nonce, nil, big.NewInt(0), initCode, deployGasLimit, gasPrice)
 	if err != nil {
 		return nil, err
 	}
-	return waitMined(ctx, client, tx)
+	return waitMined(ctx, client, tx, startBlock)
 }
 
-func signAndSendTx(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, nonce uint64, to *common.Address, value *big.Int, data []byte, gasLimit uint64, gasPrice *big.Int) (*types.Transaction, error) {
+func signAndSendTx(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, nonce uint64, to *common.Address, value *big.Int, data []byte, gasLimit uint64, gasPrice *big.Int) (*types.Transaction, uint64, error) {
 	tx := types.NewTx(&types.LegacyTx{
 		Nonce:    nonce,
 		To:       to,
@@ -465,15 +502,22 @@ func signAndSendTx(ctx context.Context, client *ethclient.Client, privKey *ecdsa
 	})
 	signedTx, err := types.SignTx(tx, types.LatestSignerForChainID(chainID), privKey)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if err := client.SendTransaction(ctx, signedTx); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return signedTx, nil
+	startBlock, err := client.BlockNumber(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	return signedTx, startBlock, nil
 }
 
-func waitMined(ctx context.Context, client *ethclient.Client, tx *types.Transaction) (*types.Receipt, error) {
+func waitMined(ctx context.Context, client *ethclient.Client, tx *types.Transaction, startBlock uint64) (*types.Receipt, error) {
+	if err := waitForNextBlock(ctx, client, startBlock); err != nil {
+		return nil, err
+	}
 	receipt, err := bind.WaitMined(ctx, client, tx)
 	if err != nil {
 		return nil, err
@@ -501,4 +545,92 @@ func suggestGasPrice(ctx context.Context, client *ethclient.Client) (*big.Int, e
 
 func receiptStatusAvailable(receipt *types.Receipt) bool {
 	return len(receipt.PostState) == 0
+}
+
+func waitForNextBlock(ctx context.Context, client *ethclient.Client, startBlock uint64) error {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			bn, err := client.BlockNumber(ctx)
+			if err != nil {
+				continue
+			}
+			if bn > startBlock {
+				return nil
+			}
+		}
+	}
+}
+
+func callCreate2(ctx context.Context, client *ethclient.Client, from common.Address, to common.Address) (common.Address, error) {
+	callMsg := ethereum.CallMsg{
+		From: from,
+		To:   &to,
+		Gas:  callGasLimit,
+	}
+	out, err := client.CallContract(ctx, callMsg, nil)
+	if err != nil {
+		return common.Address{}, err
+	}
+	if len(out) < 32 {
+		return common.Address{}, fmt.Errorf("call output too short (%d bytes)", len(out))
+	}
+	return common.BytesToAddress(out[12:32]), nil
+}
+
+func buildCreate2Runtime(childInit []byte, salt common.Hash, value byte) ([]byte, error) {
+	if len(childInit) == 0 {
+		return nil, fmt.Errorf("child initcode is empty")
+	}
+	if len(childInit) > 0xff {
+		return nil, fmt.Errorf("child initcode too long: %d", len(childInit))
+	}
+
+	runtime := make([]byte, 0, 64+len(childInit))
+	runtime = append(runtime, 0x60, byte(len(childInit))) // size
+	runtime = append(runtime, 0x60, 0x00)                 // offset (patched later)
+	offsetPos := len(runtime) - 1
+	runtime = append(runtime, 0x60, 0x00) // dest offset
+	runtime = append(runtime, 0x39)       // CODECOPY
+
+	runtime = append(runtime, 0x7f) // PUSH32 salt
+	runtime = append(runtime, salt.Bytes()...)
+	runtime = append(runtime, 0x60, byte(len(childInit))) // size
+	runtime = append(runtime, 0x60, 0x00)                 // offset
+	runtime = append(runtime, 0x60, value)                // value
+	runtime = append(runtime, 0xf5)                       // CREATE2
+
+	runtime = append(runtime, 0x60, 0x00) // offset
+	runtime = append(runtime, 0x52)       // MSTORE
+	runtime = append(runtime, 0x60, 0x20) // size
+	runtime = append(runtime, 0x60, 0x00) // offset
+	runtime = append(runtime, 0xf3)       // RETURN
+
+	childOffset := len(runtime)
+	if childOffset > 0xff {
+		return nil, fmt.Errorf("child initcode offset too large: %d", childOffset)
+	}
+	runtime[offsetPos] = byte(childOffset)
+	runtime = append(runtime, childInit...)
+	return runtime, nil
+}
+
+func isInvalidOpcodeError(err error) bool {
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "invalid opcode") ||
+		strings.Contains(msg, "bad instruction") ||
+		strings.Contains(msg, "undefined instruction") ||
+		strings.Contains(msg, "opcode 0xf5") ||
+		strings.Contains(msg, "0xf5")
+}
+
+func isRevertOrOOGError(err error) bool {
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "execution reverted") ||
+		strings.Contains(msg, "out of gas") ||
+		strings.Contains(msg, "intrinsic gas too low")
 }

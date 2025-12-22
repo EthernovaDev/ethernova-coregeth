@@ -162,7 +162,11 @@ if (-not (Test-Path $ChainData)) {
     & $Ethernova --datadir $DataDir init $GenesisPath | Out-Null
 }
 
-$LogPath = Join-Path $DataDir "devnet.log"
+$LogsDir = Join-Path $RepoRoot "logs"
+if (-not (Test-Path $LogsDir)) {
+    New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
+}
+$LogPath = Join-Path $LogsDir "devnet-test.log"
 $Args = @(
     "--datadir", $DataDir,
     "--http", "--http.addr", "127.0.0.1", "--http.port", "8545",
@@ -176,7 +180,7 @@ $Args = @(
 
 Write-Command -Exe $Ethernova -CmdArgs $Args
 Write-Host "Starting devnet node..."
-$ErrLogPath = Join-Path $DataDir "devnet.err.log"
+$ErrLogPath = Join-Path $LogsDir "devnet-test.err.log"
 $proc = Start-Process -FilePath $Ethernova -ArgumentList $Args -PassThru -RedirectStandardOutput $LogPath -RedirectStandardError $ErrLogPath
 
 function Get-BlockNumber {

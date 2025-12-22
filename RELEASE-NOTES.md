@@ -1,4 +1,4 @@
-# Ethernova v1.2.0
+# Ethernova v1.2.3-nova
 
 - Fork60000 upgrade files (mainnet config update + devnet fork-20).
 - Modern EVM opcode subset for 2025 contracts (Shanghai/Cancun: PUSH0, MCOPY, TSTORE/TLOAD, SELFDESTRUCT changes, initcode limits, warm coinbase).

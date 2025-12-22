@@ -67,6 +67,16 @@ ethernova --datadir <your-datadir> init genesis-upgrade-60000.json
 
 ---
 
+## Mainnet config update (no wipe)
+
+To update the live mainnet config for the Fork60000 schedule without wiping chain data, use:
+```
+ethernova --datadir <your-datadir> init genesis-upgrade-60000.json
+```
+This updates the chain config stored in the DB while preserving the genesis hash and full history.
+
+---
+
 ## 4. Restart the Node
 
 **Windows:**

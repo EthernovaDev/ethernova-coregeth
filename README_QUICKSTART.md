@@ -1,6 +1,6 @@
 # README_QUICKSTART.md
 
-## Ethernova v1.2.0 Quickstart (Windows + Linux)
+## Ethernova v1.2.3-nova Quickstart (Windows + Linux)
 
 This bundle is plug-and-play. You can run a devnet test or start a mainnet node without manual setup.
 

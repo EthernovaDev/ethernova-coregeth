@@ -75,7 +75,10 @@ DATA_DIR="$ROOT_DIR/data-devnet"
 RPC_URL="http://127.0.0.1:8545"
 FORK_BLOCK=20
 TARGET_BLOCK=$((FORK_BLOCK+2))
-LOG_PATH="$DATA_DIR/devnet.log"
+LOG_DIR="$ROOT_DIR/logs"
+LOG_PATH="$LOG_DIR/devnet-test.log"
+
+mkdir -p "$LOG_DIR"
 
 mkdir -p "$DATA_DIR"
 if [[ ! -d "$DATA_DIR/geth" ]]; then

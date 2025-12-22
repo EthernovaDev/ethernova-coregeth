@@ -3,7 +3,6 @@ name: release
 on:
   push:
     tags:
-      - "v*"
       - "v*-nova"
 
 permissions:
@@ -63,6 +62,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $Stage | Out-Null
           New-Item -ItemType Directory -Force -Path "$Stage\\bin" | Out-Null
           New-Item -ItemType Directory -Force -Path "$Stage\\genesis" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$Stage\\network" | Out-Null
           New-Item -ItemType Directory -Force -Path "$Stage\\docs" | Out-Null
           New-Item -ItemType Directory -Force -Path "$Stage\\scripts" | Out-Null
 
@@ -73,6 +73,7 @@ jobs:
           Copy-Item "genesis-upgrade-60000.json" "$Stage\\genesis\\genesis-upgrade-60000.json" -Force
           Copy-Item "genesis-devnet-fork20.json" "$Stage\\genesis\\genesis-devnet-fork20.json" -Force
           Copy-Item "devnet-testkey.txt" "$Stage\\genesis\\devnet-testkey.txt" -Force
+          Copy-Item "network\\*" "$Stage\\network\\" -Force
 
           Copy-Item "OPERATOR_RUNBOOK.md" "$Stage\\docs\\OPERATOR_RUNBOOK.md" -Force
           Copy-Item "RELEASE_NOTES_FORK60000.md" "$Stage\\docs\\RELEASE_NOTES_FORK60000.md" -Force
@@ -94,6 +95,7 @@ jobs:
           VERSION="${{ github.ref_name }}"
           STAGE="stage"
           mkdir -p "$STAGE/bin" "$STAGE/genesis" "$STAGE/docs" "$STAGE/scripts"
+          mkdir -p "$STAGE/network"
 
           cp bin/ethernova "$STAGE/bin/ethernova"
           cp bin/evmcheck "$STAGE/bin/evmcheck"
@@ -102,6 +104,7 @@ jobs:
           cp genesis-upgrade-60000.json "$STAGE/genesis/genesis-upgrade-60000.json"
           cp genesis-devnet-fork20.json "$STAGE/genesis/genesis-devnet-fork20.json"
           cp devnet-testkey.txt "$STAGE/genesis/devnet-testkey.txt"
+          cp network/* "$STAGE/network/"
 
           cp OPERATOR_RUNBOOK.md "$STAGE/docs/OPERATOR_RUNBOOK.md"
           cp RELEASE_NOTES_FORK60000.md "$STAGE/docs/RELEASE_NOTES_FORK60000.md"
