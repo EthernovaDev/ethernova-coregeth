@@ -2,7 +2,20 @@
 
 ## Scheduled Hard Fork Upgrade at Block 60000
 
-This runbook describes how to safely upgrade your node to activate EIP-1014 (CREATE2), EIP-1344 (CHAINID), and companion EIPs at block 60000 without resetting chain history.
+This runbook describes how to safely upgrade your node to activate new EVM features at block 60000 without resetting chain history.
+
+---
+
+## Fork Options
+
+**Minimal DEX fork**
+- Enables only the minimum opcodes and gas changes needed for UniswapV2-style deployments.
+- EIP-1014 (CREATE2), EIP-1344 (CHAINID), plus Istanbul companion EIPs (145/1052/152/1108/1884/2028/2200).
+
+**Modern EVM fork**
+- Includes the minimal DEX fork plus Shanghai/Cancun opcode upgrades commonly required by Solidity 0.8.20+.
+- EIP-3651 (warm COINBASE), EIP-3855 (PUSH0), EIP-3860 (initcode limits), EIP-1153 (transient storage), EIP-5656 (MCOPY), EIP-6780 (SELFDESTRUCT changes).
+- Does not enable PoS/Merge features or PoS-specific upgrades (no TTD, no EIP-4895 withdrawals, no EIP-4788, no EIP-4844/7516 blobs).
 
 ---
 
@@ -48,6 +61,7 @@ ethernova.exe --datadir <your-datadir> init genesis-upgrade-60000.json
 ethernova --datadir <your-datadir> init genesis-upgrade-60000.json
 ```
 
+- Do NOT replace the genesis file in your datadir. The `init` command updates the stored chain config in-place and preserves the existing genesis hash.
 - This updates the stored chain config in-place without wiping chain data as long as the genesis hash is unchanged.
 - The tool uses `core.SetupGenesisBlockWithOverride` to safely update the config.
 
@@ -70,7 +84,14 @@ ethernova --datadir <your-datadir> --networkid 77777 --mine ...
 ## 5. Verify the Upgrade
 
 - Check logs for config update confirmation.
-- Use the `cmd/evmcheck` tool to verify CREATE2 and CHAINID activation.
+- Use the `cmd/evmcheck` tool to verify CREATE2, CHAINID, and Shanghai/Cancun opcode activation.
+
+---
+
+## What happens if you do not upgrade
+
+- Nodes that skip the fork will reject post-fork blocks and follow a minority chain.
+- That causes a chain split between upgraded and non-upgraded nodes.
 
 ---
 
@@ -80,13 +101,13 @@ ethernova --datadir <your-datadir> --networkid 77777 --mine ...
 ```
 .\evmcheck.exe --rpc http://HOST:8545 --pk 0xHEX --chainid 77777 --forkblock 60000
 ```
-Expected: `Pre-fork: true`, `CHAINID opcode: FAIL`, `CREATE2 opcode: FAIL`, `EVM upgrade check: FAIL` (exit code 1).
+Expected: `Pre-fork: true`, `CHAINID opcode: FAIL`, `CREATE2 opcode: FAIL`, `PUSH0 opcode: FAIL`, `MCOPY opcode: FAIL`, `TSTORE/TLOAD opcodes: FAIL`, `SELFDESTRUCT (EIP-6780): FAIL`, `EVM upgrade check: FAIL` (exit code 1).
 
 **Post-fork (block >= 60000), expected PASS:**
 ```
 .\evmcheck.exe --rpc http://HOST:8545 --pk 0xHEX --chainid 77777 --forkblock 60000
 ```
-Expected: `Pre-fork: false`, `CHAINID opcode: PASS`, `CREATE2 opcode: PASS`, `EVM upgrade check: PASS` (exit code 0).
+Expected: `Pre-fork: false`, `CHAINID opcode: PASS`, `CREATE2 opcode: PASS`, `PUSH0 opcode: PASS`, `MCOPY opcode: PASS`, `TSTORE/TLOAD opcodes: PASS`, `SELFDESTRUCT (EIP-6780): PASS`, `EVM upgrade check: PASS` (exit code 0).
 
 ---
 

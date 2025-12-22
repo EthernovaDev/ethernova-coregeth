@@ -74,3 +74,7 @@ les/transactions.rlp
 tests/files/VMTests/vmInputLimits.json
 tests/files/VMTests/vmInputLimitsTest1.json
 
+
+# local build artifacts
+evmcheck.exe
+

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"flag"
@@ -28,6 +29,13 @@ const (
 	chainIDInitHex        = "0x6009600c60003960096000f34660005260206000f3"
 	childInitHex          = "0x600a600c600039600a6000f3602a60005260206000f3"
 	deployerInitPrefixHex = "0x602e600c600039602e6000f3601660186000396000600060166001f560005260206000f3"
+)
+
+const (
+	push0RuntimeHex  = "0x5f5f5260205ff3"
+	mcopyExpectedHex = "0x11223344556677889900aabbccddeeff00112233445566778899aabbccddeeff"
+	mcopyRuntimeHex  = "0x7f11223344556677889900aabbccddeeff00112233445566778899aabbccddeeff5f5260205f60205e60206020f3"
+	tstoreRuntimeHex = "0x602a5f5d5f5c5f5260205ff3"
 )
 
 func main() {
@@ -80,7 +88,19 @@ func main() {
 	create2Pass, create2Msg := checkCreate2(ctx, client, privKey, chainID, preFork)
 	printCheck("CREATE2 opcode", create2Pass, create2Msg)
 
-	if chainIDPass && create2Pass {
+	push0Pass, push0Msg := checkPush0(ctx, client, privKey, chainID, preFork)
+	printCheck("PUSH0 opcode", push0Pass, push0Msg)
+
+	mcopyPass, mcopyMsg := checkMCopy(ctx, client, privKey, chainID, preFork)
+	printCheck("MCOPY opcode", mcopyPass, mcopyMsg)
+
+	tstorePass, tstoreMsg := checkTStore(ctx, client, privKey, chainID, preFork)
+	printCheck("TSTORE/TLOAD opcodes", tstorePass, tstoreMsg)
+
+	selfdestructPass, selfdestructMsg := checkSelfdestruct(ctx, client, privKey, chainID, preFork)
+	printCheck("SELFDESTRUCT (EIP-6780)", selfdestructPass, selfdestructMsg)
+
+	if chainIDPass && create2Pass && push0Pass && mcopyPass && tstorePass && selfdestructPass {
 		fmt.Println("EVM upgrade check: PASS")
 		os.Exit(0)
 	}
@@ -140,6 +160,7 @@ func checkChainID(ctx context.Context, client *ethclient.Client, privKey *ecdsa.
 	callMsg := ethereum.CallMsg{
 		From: fromAddr,
 		To:   &receipt.ContractAddress,
+		Gas:  callGasLimit,
 	}
 	out, err := client.CallContract(ctx, callMsg, nil)
 	if err != nil {
@@ -165,6 +186,105 @@ func checkChainID(ctx context.Context, client *ethclient.Client, privKey *ecdsa.
 
 	if preFork {
 		return false, fmt.Sprintf("unexpected pre-fork success: got chainid %s", gotChainID.String())
+	}
+	return true, ""
+}
+
+func checkPush0(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, preFork bool) (bool, string) {
+	runtime := common.FromHex(push0RuntimeHex)
+	initCode, err := buildInitCode(runtime)
+	if err != nil {
+		return false, fmt.Sprintf("initcode error: %v", err)
+	}
+	expected := make([]byte, 32)
+	return checkOpcodeCall(ctx, client, privKey, chainID, preFork, initCode, expected)
+}
+
+func checkMCopy(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, preFork bool) (bool, string) {
+	runtime := common.FromHex(mcopyRuntimeHex)
+	initCode, err := buildInitCode(runtime)
+	if err != nil {
+		return false, fmt.Sprintf("initcode error: %v", err)
+	}
+	expected := common.FromHex(mcopyExpectedHex)
+	if len(expected) != 32 {
+		return false, fmt.Sprintf("expected output length %d", len(expected))
+	}
+	return checkOpcodeCall(ctx, client, privKey, chainID, preFork, initCode, expected)
+}
+
+func checkTStore(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, preFork bool) (bool, string) {
+	runtime := common.FromHex(tstoreRuntimeHex)
+	initCode, err := buildInitCode(runtime)
+	if err != nil {
+		return false, fmt.Sprintf("initcode error: %v", err)
+	}
+	expected := common.LeftPadBytes([]byte{0x2a}, 32)
+	return checkOpcodeCall(ctx, client, privKey, chainID, preFork, initCode, expected)
+}
+
+func checkSelfdestruct(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, preFork bool) (bool, string) {
+	fromAddr := crypto.PubkeyToAddress(privKey.PublicKey)
+	gasPrice, err := client.SuggestGasPrice(ctx)
+	if err != nil {
+		return false, fmt.Sprintf("gas price error: %v", err)
+	}
+
+	runtime := buildSelfdestructRuntime(fromAddr)
+	initCode, err := buildInitCode(runtime)
+	if err != nil {
+		return false, fmt.Sprintf("initcode error: %v", err)
+	}
+
+	deployReceipt, err := deployContract(ctx, client, privKey, chainID, initCode, gasPrice)
+	if err != nil {
+		return false, fmt.Sprintf("deploy error: %v", err)
+	}
+	if deployReceipt.Status != types.ReceiptStatusSuccessful {
+		return false, fmt.Sprintf("deploy tx status %d", deployReceipt.Status)
+	}
+	if deployReceipt.ContractAddress == (common.Address{}) {
+		return false, "deploy missing contract address"
+	}
+
+	codeBefore, err := client.CodeAt(ctx, deployReceipt.ContractAddress, nil)
+	if err != nil {
+		return false, fmt.Sprintf("getCode error: %v", err)
+	}
+	if len(codeBefore) == 0 {
+		return false, "deployed code is empty"
+	}
+
+	nonce, err := client.PendingNonceAt(ctx, fromAddr)
+	if err != nil {
+		return false, fmt.Sprintf("nonce error: %v", err)
+	}
+	callTx, err := signAndSendTx(ctx, client, privKey, chainID, nonce, &deployReceipt.ContractAddress, nil, callGasLimit, gasPrice)
+	if err != nil {
+		return false, fmt.Sprintf("selfdestruct tx error: %v", err)
+	}
+	callReceipt, err := waitMined(ctx, client, callTx)
+	if err != nil {
+		return false, fmt.Sprintf("selfdestruct receipt error: %v", err)
+	}
+	if callReceipt.Status != types.ReceiptStatusSuccessful {
+		return false, fmt.Sprintf("selfdestruct tx status %d", callReceipt.Status)
+	}
+
+	codeAfter, err := client.CodeAt(ctx, deployReceipt.ContractAddress, nil)
+	if err != nil {
+		return false, fmt.Sprintf("getCode error: %v", err)
+	}
+
+	if preFork {
+		if len(codeAfter) == 0 {
+			return false, "expected pre-fork behavior: code deleted"
+		}
+		return false, "unexpected pre-fork behavior: code preserved"
+	}
+
+	if len(codeAfter) == 0 {
+		return false, "code deleted (EIP-6780 not active)"
 	}
 	return true, ""
 }
@@ -240,6 +360,95 @@ func checkCreate2(ctx context.Context, client *ethclient.Client, privKey *ecdsa.
 	}
 
 	return true, ""
+}
+
+func checkOpcodeCall(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, preFork bool, initCode []byte, expected []byte) (bool, string) {
+	fromAddr := crypto.PubkeyToAddress(privKey.PublicKey)
+	gasPrice, err := client.SuggestGasPrice(ctx)
+	if err != nil {
+		return false, fmt.Sprintf("gas price error: %v", err)
+	}
+
+	receipt, err := deployContract(ctx, client, privKey, chainID, initCode, gasPrice)
+	if err != nil {
+		return false, fmt.Sprintf("deploy error: %v", err)
+	}
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		if preFork {
+			return false, fmt.Sprintf("expected pre-fork failure: deploy status %d", receipt.Status)
+		}
+		return false, fmt.Sprintf("deploy tx status %d", receipt.Status)
+	}
+	if receipt.ContractAddress == (common.Address{}) {
+		return false, "deploy missing contract address"
+	}
+
+	callMsg := ethereum.CallMsg{
+		From: fromAddr,
+		To:   &receipt.ContractAddress,
+		Gas:  callGasLimit,
+	}
+	out, err := client.CallContract(ctx, callMsg, nil)
+	if err != nil {
+		if preFork {
+			return false, fmt.Sprintf("expected pre-fork failure: %v", err)
+		}
+		return false, fmt.Sprintf("call error: %v", err)
+	}
+	if len(out) != len(expected) {
+		if preFork {
+			return false, fmt.Sprintf("unexpected pre-fork success: output len %d", len(out))
+		}
+		return false, fmt.Sprintf("unexpected output length %d", len(out))
+	}
+	if !bytes.Equal(out, expected) {
+		if preFork {
+			return false, fmt.Sprintf("unexpected pre-fork success: output 0x%s", common.Bytes2Hex(out))
+		}
+		return false, fmt.Sprintf("output mismatch got 0x%s", common.Bytes2Hex(out))
+	}
+	if preFork {
+		return false, fmt.Sprintf("unexpected pre-fork success: output 0x%s", common.Bytes2Hex(out))
+	}
+	return true, ""
+}
+
+func buildInitCode(runtime []byte) ([]byte, error) {
+	if len(runtime) > 0xff {
+		return nil, fmt.Errorf("runtime too long: %d", len(runtime))
+	}
+	length := byte(len(runtime))
+	init := []byte{
+		0x60, length,
+		0x60, 0x0c,
+		0x60, 0x00,
+		0x39,
+		0x60, length,
+		0x60, 0x00,
+		0xf3,
+	}
+	return append(init, runtime...), nil
+}
+
+func buildSelfdestructRuntime(beneficiary common.Address) []byte {
+	runtime := make([]byte, 0, 22)
+	runtime = append(runtime, 0x73)
+	runtime = append(runtime, beneficiary.Bytes()...)
+	runtime = append(runtime, 0xff)
+	return runtime
+}
+
+func deployContract(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, initCode []byte, gasPrice *big.Int) (*types.Receipt, error) {
+	fromAddr := crypto.PubkeyToAddress(privKey.PublicKey)
+	nonce, err := client.PendingNonceAt(ctx, fromAddr)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := signAndSendTx(ctx, client, privKey, chainID, nonce, nil, initCode, deployGasLimit, gasPrice)
+	if err != nil {
+		return nil, err
+	}
+	return waitMined(ctx, client, tx)
 }
 
 func signAndSendTx(ctx context.Context, client *ethclient.Client, privKey *ecdsa.PrivateKey, chainID *big.Int, nonce uint64, to *common.Address, data []byte, gasLimit uint64, gasPrice *big.Int) (*types.Transaction, error) {

@@ -18,6 +18,12 @@
     "eip1884FBlock": 60000,
     "eip2028FBlock": 60000,
     "eip2200FBlock": 60000,
+    "eip3651FBlock": 60000,
+    "eip3855FBlock": 60000,
+    "eip3860FBlock": 60000,
+    "eip1153FBlock": 60000,
+    "eip5656FBlock": 60000,
+    "eip6780FBlock": 60000,
     "baseFeeVault": "0x3a38560b66205bb6a31decbcb245450b2f15d4fd",
     "baseFeeVaultFromBlock": 0,
     "blockReward": {
