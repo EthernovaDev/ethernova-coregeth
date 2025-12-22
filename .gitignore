@@ -78,3 +78,11 @@ tests/files/VMTests/vmInputLimitsTest1.json
 # local build artifacts
 evmcheck.exe
 
+
+# local test/build artifacts
+data-devnet*/
+stage-win/
+*.zip
+*.tar.gz
+*.sha256
+
