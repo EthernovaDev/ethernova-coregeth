@@ -40,11 +40,19 @@ if [[ -z "$BOOTNODES" ]]; then
     BOOTNODES_FILE="$ROOT_DIR/network/bootnodes.txt"
   fi
   if [[ -f "$BOOTNODES_FILE" ]]; then
-    BOOTNODES="$(grep -vE '^[[:space:]]*(#|$)' "$BOOTNODES_FILE" | paste -sd, - || true)"
+    BOOTNODES="$(grep -vE '^[[:space:]]*(#|$)' "$BOOTNODES_FILE" | tr -d '\r' | paste -sd, - || true)"
   fi
 fi
 
 mkdir -p "$DATA_DIR"
+
+STATIC_NODES_SRC="$ROOT_DIR/network/static-nodes.json"
+if [[ -f "$STATIC_NODES_SRC" ]]; then
+  mkdir -p "$DATA_DIR/geth"
+  STATIC_NODES_DST="$DATA_DIR/geth/static-nodes.json"
+  cp "$STATIC_NODES_SRC" "$STATIC_NODES_DST"
+  echo "Static nodes: $STATIC_NODES_DST"
+fi
 
 ARGS=(
   --datadir "$DATA_DIR"
@@ -54,7 +62,10 @@ ARGS=(
 )
 
 if [[ -n "$BOOTNODES" ]]; then
+  echo "Bootnodes: $BOOTNODES"
   ARGS+=(--bootnodes "$BOOTNODES")
+else
+  echo "Bootnodes: (none)"
 fi
 
 if [[ "$MINE" == "1" ]]; then

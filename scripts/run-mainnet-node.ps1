@@ -45,9 +45,20 @@ if (-not (Test-Path $DataDir)) {
     New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
 }
 
+$StaticNodesSrc = Join-Path $RepoRoot "network\static-nodes.json"
+if (Test-Path $StaticNodesSrc) {
+    $StaticDstDir = Join-Path $DataDir "geth"
+    if (-not (Test-Path $StaticDstDir)) {
+        New-Item -ItemType Directory -Force -Path $StaticDstDir | Out-Null
+    }
+    $StaticDst = Join-Path $StaticDstDir "static-nodes.json"
+    Copy-Item $StaticNodesSrc $StaticDst -Force
+    Write-Host ("Static nodes: {0}" -f $StaticDst)
+}
+
 $BootnodeList = @()
 if ($Bootnodes) {
-    $BootnodeList = $Bootnodes -split ","
+    $BootnodeList = $Bootnodes -split "," | ForEach-Object { $_.Trim() } | Where-Object { $_ }
 } else {
     if (-not $BootnodesFile) {
         $BootnodesFile = Join-Path $RepoRoot "network\bootnodes.txt"
@@ -67,7 +78,11 @@ $Args = @(
 )
 
 if ($BootnodeList.Count -gt 0) {
-    $Args += @("--bootnodes", ($BootnodeList -join ","))
+    $BootnodesUsed = $BootnodeList -join ","
+    Write-Host ("Bootnodes: {0}" -f $BootnodesUsed)
+    $Args += @("--bootnodes", $BootnodesUsed)
+} else {
+    Write-Host "Bootnodes: (none)"
 }
 
 if ($Mine) {

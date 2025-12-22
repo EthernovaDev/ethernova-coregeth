@@ -6,6 +6,34 @@
 - Operator runbook updates and fork-specific release notes.
 - One-click devnet test/run scripts for Windows and Linux bundles.
 
+Expected `evmcheck` output (pre-fork vs post-fork):
+
+```text
+Current block: 10
+Fork block: 60000
+Pre-fork: true
+CHAINID opcode: FAIL (expected pre-fork failure: invalid opcode (CHAINID/0x46))
+CREATE2 opcode: FAIL (expected pre-fork failure: invalid opcode (CREATE2/0xF5))
+PUSH0 opcode: FAIL (expected pre-fork failure: invalid opcode (PUSH0))
+MCOPY opcode: FAIL (expected pre-fork failure: invalid opcode (MCOPY))
+TSTORE/TLOAD opcodes: FAIL (expected pre-fork failure: invalid opcode (TSTORE/TLOAD))
+SELFDESTRUCT (EIP-6780): FAIL (expected pre-fork behavior: code deleted)
+EVM upgrade check: FAIL
+```
+
+```text
+Current block: 60002
+Fork block: 60000
+Pre-fork: false
+CHAINID opcode: PASS
+CREATE2 opcode: PASS
+PUSH0 opcode: PASS
+MCOPY opcode: PASS
+TSTORE/TLOAD opcodes: PASS
+SELFDESTRUCT (EIP-6780): PASS
+EVM upgrade check: PASS
+```
+
 # Ethernova v1.0.0-nova
 
 - Ethash PoW chain with EIP-1559 baseFee redirected to treasury vault `0x3a38560b66205bb6a31decbcb245450b2f15d4fd`; tips remain with miners.
