@@ -22,6 +22,7 @@
 - EIP-2200 (SSTORE gas changes)
 
 **Modern Solidity (Shanghai/Cancun opcodes)**
+- EIP-3198 (BASEFEE opcode)
 - EIP-3651 (warm COINBASE)
 - EIP-3855 (PUSH0)
 - EIP-3860 (initcode limits)

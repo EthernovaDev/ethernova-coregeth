@@ -1,0 +1,110 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            ext: ".exe"
+            archive: "zip"
+          - os: ubuntu-latest
+            ext: ""
+            archive: "tar.gz"
+    env:
+      CGO_ENABLED: "0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
+      - name: Build binaries (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path bin | Out-Null
+          go build -o bin\ethernova.exe .\cmd\geth
+          go build -o bin\evmcheck.exe .\cmd\evmcheck
+
+      - name: Build binaries (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          mkdir -p bin
+          go build -o bin/ethernova ./cmd/geth
+          go build -o bin/evmcheck ./cmd/evmcheck
+
+      - name: Package (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $Version = "${{ github.ref_name }}"
+          $Stage = "stage"
+          New-Item -ItemType Directory -Force -Path $Stage | Out-Null
+          New-Item -ItemType Directory -Force -Path "$Stage\\bin" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$Stage\\genesis" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$Stage\\docs" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$Stage\\scripts" | Out-Null
+
+          Copy-Item "bin\\ethernova.exe" "$Stage\\bin\\ethernova.exe" -Force
+          Copy-Item "bin\\evmcheck.exe" "$Stage\\bin\\evmcheck.exe" -Force
+
+          Copy-Item "genesis-mainnet.json" "$Stage\\genesis\\genesis-mainnet.json" -Force
+          Copy-Item "genesis-upgrade-60000.json" "$Stage\\genesis\\genesis-upgrade-60000.json" -Force
+          Copy-Item "genesis-devnet-fork20.json" "$Stage\\genesis\\genesis-devnet-fork20.json" -Force
+          Copy-Item "devnet-testkey.txt" "$Stage\\genesis\\devnet-testkey.txt" -Force
+
+          Copy-Item "OPERATOR_RUNBOOK.md" "$Stage\\docs\\OPERATOR_RUNBOOK.md" -Force
+          Copy-Item "RELEASE_NOTES_FORK60000.md" "$Stage\\docs\\RELEASE_NOTES_FORK60000.md" -Force
+          Copy-Item "README_QUICKSTART.md" "$Stage\\README_QUICKSTART.md" -Force
+
+          Copy-Item "scripts\\*.ps1" "$Stage\\scripts\\" -Force
+          Copy-Item "scripts\\*.bat" "$Stage\\scripts\\" -Force
+          Copy-Item "scripts\\*.sh" "$Stage\\scripts\\" -Force
+
+          $ZipName = "ethernova-$Version-windows-amd64.zip"
+          if (Test-Path $ZipName) { Remove-Item $ZipName -Force }
+          Compress-Archive -Path "$Stage\\*" -DestinationPath $ZipName -Force
+
+      - name: Package (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          VERSION="${{ github.ref_name }}"
+          STAGE="stage"
+          mkdir -p "$STAGE/bin" "$STAGE/genesis" "$STAGE/docs" "$STAGE/scripts"
+
+          cp bin/ethernova "$STAGE/bin/ethernova"
+          cp bin/evmcheck "$STAGE/bin/evmcheck"
+
+          cp genesis-mainnet.json "$STAGE/genesis/genesis-mainnet.json"
+          cp genesis-upgrade-60000.json "$STAGE/genesis/genesis-upgrade-60000.json"
+          cp genesis-devnet-fork20.json "$STAGE/genesis/genesis-devnet-fork20.json"
+          cp devnet-testkey.txt "$STAGE/genesis/devnet-testkey.txt"
+
+          cp OPERATOR_RUNBOOK.md "$STAGE/docs/OPERATOR_RUNBOOK.md"
+          cp RELEASE_NOTES_FORK60000.md "$STAGE/docs/RELEASE_NOTES_FORK60000.md"
+          cp README_QUICKSTART.md "$STAGE/README_QUICKSTART.md"
+
+          cp scripts/*.ps1 "$STAGE/scripts/" || true
+          cp scripts/*.bat "$STAGE/scripts/" || true
+          cp scripts/*.sh "$STAGE/scripts/" || true
+          chmod +x "$STAGE/scripts/"*.sh
+
+          tar -czf "ethernova-$VERSION-linux-amd64.tar.gz" -C "$STAGE" .
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ethernova-${{ github.ref_name }}-windows-amd64.zip
+            ethernova-${{ github.ref_name }}-linux-amd64.tar.gz

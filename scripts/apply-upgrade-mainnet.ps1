@@ -1,10 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 param(
-    [string]$DataDir = "",
-    [int]$HttpPort = 8545,
-    [int]$WsPort = 8546,
-    [switch]$Mine
+    [string]$DataDir = ""
 )
 
 function Resolve-FirstPath {
@@ -26,25 +23,19 @@ $Ethernova = Resolve-FirstPath @(
 )
 if (-not $Ethernova) { throw "ethernova.exe not found (expected bin\\ethernova.exe or root)." }
 
+$GenesisUpgrade = Resolve-FirstPath @(
+    (Join-Path $RepoRoot "genesis\\genesis-upgrade-60000.json"),
+    (Join-Path $RepoRoot "genesis-upgrade-60000.json")
+)
+if (-not $GenesisUpgrade) { throw "genesis-upgrade-60000.json not found." }
+
 if (-not $DataDir) {
     $DataDir = Join-Path $RepoRoot "data-mainnet"
 }
 
-if (-not (Test-Path $DataDir)) {
-    New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
-}
+Write-Host "Applying Fork60000 config upgrade..."
+Write-Host "NOTE: Do NOT replace the genesis file in your datadir."
+Write-Host "      This command updates the stored chain config in-place."
 
-$Args = @(
-    "--datadir", $DataDir,
-    "--networkid", "77777",
-    "--http", "--http.addr", "127.0.0.1", "--http.port", "$HttpPort",
-    "--http.api", "eth,net,web3,debug",
-    "--ws", "--ws.addr", "127.0.0.1", "--ws.port", "$WsPort",
-    "--ws.api", "eth,net,web3,debug"
-)
-
-if ($Mine) {
-    $Args += @("--mine")
-}
-
-& $Ethernova @Args
+& $Ethernova --datadir $DataDir init $GenesisUpgrade
+exit $LASTEXITCODE

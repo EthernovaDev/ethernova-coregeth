@@ -1,3 +1,11 @@
+# Ethernova v1.2.0
+
+- Fork60000 upgrade files (mainnet config update + devnet fork-20).
+- Modern EVM opcode subset for 2025 contracts (Shanghai/Cancun: PUSH0, MCOPY, TSTORE/TLOAD, SELFDESTRUCT changes, initcode limits, warm coinbase).
+- Expanded `evmcheck` with on-chain opcode verification and PASS/FAIL output.
+- Operator runbook updates and fork-specific release notes.
+- One-click devnet test/run scripts for Windows and Linux bundles.
+
 # Ethernova v1.0.0-nova
 
 - Ethash PoW chain with EIP-1559 baseFee redirected to treasury vault `0x3a38560b66205bb6a31decbcb245450b2f15d4fd`; tips remain with miners.
