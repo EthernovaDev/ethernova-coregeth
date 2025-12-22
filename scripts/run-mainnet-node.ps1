@@ -1,11 +1,11 @@
-$ErrorActionPreference = "Stop"
-
 param(
     [string]$DataDir = "",
     [int]$HttpPort = 8545,
     [int]$WsPort = 8546,
     [switch]$Mine
 )
+
+$ErrorActionPreference = "Stop"
 
 function Resolve-FirstPath {
     param([string[]]$Candidates)
@@ -15,6 +15,15 @@ function Resolve-FirstPath {
         }
     }
     return $null
+}
+
+function Write-Command {
+    param([string]$Exe, [string[]]$CmdArgs)
+    if ($CmdArgs) {
+        Write-Host ("Running: {0} {1}" -f $Exe, ($CmdArgs -join " "))
+    } else {
+        Write-Host ("Running: {0}" -f $Exe)
+    }
 }
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -47,4 +56,5 @@ if ($Mine) {
     $Args += @("--mine")
 }
 
+Write-Command -Exe $Ethernova -CmdArgs $Args
 & $Ethernova @Args

@@ -1,8 +1,8 @@
-$ErrorActionPreference = "Stop"
-
 param(
     [string]$DataDir = ""
 )
+
+$ErrorActionPreference = "Stop"
 
 function Resolve-FirstPath {
     param([string[]]$Candidates)
@@ -12,6 +12,15 @@ function Resolve-FirstPath {
         }
     }
     return $null
+}
+
+function Write-Command {
+    param([string]$Exe, [string[]]$CmdArgs)
+    if ($CmdArgs) {
+        Write-Host ("Running: {0} {1}" -f $Exe, ($CmdArgs -join " "))
+    } else {
+        Write-Host ("Running: {0}" -f $Exe)
+    }
 }
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -37,5 +46,6 @@ Write-Host "Applying Fork60000 config upgrade..."
 Write-Host "NOTE: Do NOT replace the genesis file in your datadir."
 Write-Host "      This command updates the stored chain config in-place."
 
+Write-Command -Exe $Ethernova -CmdArgs @("--datadir", $DataDir, "init", $GenesisUpgrade)
 & $Ethernova --datadir $DataDir init $GenesisUpgrade
 exit $LASTEXITCODE
