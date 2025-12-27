@@ -49,7 +49,7 @@ curl -fL "$TARBALL_URL" -o "$TEMP_DIR/$TARBALL"
 
 echo "Downloading $CHECKSUMS_URL"
 if curl -fL "$CHECKSUMS_URL" -o "$TEMP_DIR/checksums-sha256.txt"; then
-  expected="$(grep " $TARBALL\$" "$TEMP_DIR/checksums-sha256.txt" | awk '{print $1}')"
+  expected="$(tr -d '\r' < "$TEMP_DIR/checksums-sha256.txt" | grep -m1 " $TARBALL\$" | awk '{print $1}' || true)"
   if [[ -n "$expected" ]]; then
     actual="$(sha256sum "$TEMP_DIR/$TARBALL" | awk '{print $1}')"
     if [[ "$expected" != "$actual" ]]; then
