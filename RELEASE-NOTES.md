@@ -1,3 +1,9 @@
+# Ethernova v1.2.4
+
+- Hardfork 1.2.4 at block 70000 enables Byzantium base (EIP-214 STATICCALL) to fix contract-to-contract view calls.
+- New upgrade genesis: `genesis-upgrade-70000.json` (config-only, no chain reset).
+- One-click update scripts for Windows + Linux bundles.
+
 # Ethernova v1.2.3-nova
 
 - Fork60000 upgrade files (mainnet config update + devnet fork-20).

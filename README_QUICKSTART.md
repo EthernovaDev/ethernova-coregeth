@@ -1,6 +1,6 @@
 # README_QUICKSTART.md
 
-## Ethernova v1.2.3-nova Quickstart (Windows + Linux)
+## Ethernova v1.2.4 Quickstart (Windows + Linux)
 
 This bundle is plug-and-play. You can run a devnet test or start a mainnet node without manual setup.
 
@@ -48,10 +48,14 @@ scripts\apply-upgrade-mainnet.bat
 
 This runs:
 ```
-ethernova --datadir <your-datadir> init genesis-upgrade-60000.json
+ethernova --datadir <your-datadir> init genesis-upgrade-70000.json
 ```
 
 Do NOT replace the genesis file in your datadir. The init command updates the stored chain config in-place and preserves the genesis hash.
+
+**One-click update (recommended)**
+- Windows: `update.bat`
+- Linux: `./update.sh`
 
 ---
 
@@ -73,3 +77,5 @@ Defaults:
 - WS: `127.0.0.1:8546`
 
 You can edit the scripts to change datadir or ports.
+
+Note: run-mainnet-node scripts apply `genesis-upgrade-70000.json` automatically if present (idempotent).

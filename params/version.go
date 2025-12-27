@@ -23,8 +23,8 @@ import (
 const (
 	VersionMajor = 1     // Major version component of the current release
 	VersionMinor = 2     // Minor version component of the current release
-	VersionPatch = 3     // Patch version component of the current release
-	VersionMeta  = "nova" // Version metadata to append to the version string
+VersionPatch = 4     // Patch version component of the current release
+	VersionMeta  = "" // Version metadata to append to the version string
 	VersionName  = "CoreGeth"
 )
 
@@ -47,7 +47,7 @@ var VersionWithMeta = func() string {
 // releases.
 func ArchiveVersion(gitCommit string) string {
 	vsn := Version
-	if VersionMeta != "stable" {
+	if VersionMeta != "" && VersionMeta != "stable" {
 		vsn += "-" + VersionMeta
 	}
 	if len(gitCommit) >= 8 {
@@ -61,7 +61,7 @@ func VersionWithCommit(gitCommit, gitDate string) string {
 	if len(gitCommit) >= 8 {
 		vsn += "-" + gitCommit[:8]
 	}
-	if (VersionMeta != "stable") && (gitDate != "") {
+	if (VersionMeta != "" && VersionMeta != "stable") && (gitDate != "") {
 		vsn += "-" + gitDate
 	}
 	return vsn

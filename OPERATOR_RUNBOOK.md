@@ -1,8 +1,8 @@
 # OPERATOR_RUNBOOK.md
 
-## Scheduled Hard Fork Upgrade at Block 60000
+## Scheduled Hard Fork Upgrade at Blocks 60000 and 70000
 
-This runbook describes how to safely upgrade your node to activate new EVM features at block 60000 without resetting chain history.
+This runbook describes how to safely upgrade your node to activate new EVM features at blocks 60000 and 70000 without resetting chain history.
 
 ---
 
@@ -16,6 +16,7 @@ This runbook describes how to safely upgrade your node to activate new EVM featu
 - Includes the minimal DEX fork plus Shanghai/Cancun opcode upgrades commonly required by Solidity 0.8.20+.
 - EIP-3198 (BASEFEE opcode), EIP-3651 (warm COINBASE), EIP-3855 (PUSH0), EIP-3860 (initcode limits), EIP-1153 (transient storage), EIP-5656 (MCOPY), EIP-6780 (SELFDESTRUCT changes).
 - Does not enable PoS/Merge features or PoS-specific upgrades (no TTD, no EIP-4895 withdrawals, no EIP-4788, no EIP-4844/7516 blobs).
+- Fork 70000 adds the missing Byzantium base package (EIP-214 STATICCALL) to fix contract-to-contract view calls.
 
 ---
 
@@ -53,25 +54,26 @@ cp -a /path/to/datadir /path/to/backup/datadir
 
 **Windows:**
 ```
-ethernova.exe --datadir <your-datadir> init genesis-upgrade-60000.json
+ethernova.exe --datadir <your-datadir> init genesis-upgrade-70000.json
 ```
 
 **Linux:**
 ```
-ethernova --datadir <your-datadir> init genesis-upgrade-60000.json
+ethernova --datadir <your-datadir> init genesis-upgrade-70000.json
 ```
 
 - Do NOT replace the genesis file in your datadir. The `init` command updates the stored chain config in-place and preserves the existing genesis hash.
 - This updates the stored chain config in-place without wiping chain data as long as the genesis hash is unchanged.
 - The tool uses `core.SetupGenesisBlockWithOverride` to safely update the config.
+ - The run-mainnet-node scripts also apply the latest upgrade config if present (idempotent).
 
 ---
 
 ## Mainnet config update (no wipe)
 
-To update the live mainnet config for the Fork60000 schedule without wiping chain data, use:
+To update the live mainnet config for the Fork70000 schedule without wiping chain data, use:
 ```
-ethernova --datadir <your-datadir> init genesis-upgrade-60000.json
+ethernova --datadir <your-datadir> init genesis-upgrade-70000.json
 ```
 This updates the chain config stored in the DB while preserving the genesis hash and full history.
 
@@ -118,6 +120,15 @@ Expected: `Pre-fork: true`, `CHAINID opcode: FAIL`, `CREATE2 opcode: FAIL`, `PUS
 .\evmcheck.exe --rpc http://HOST:8545 --pk 0xHEX --chainid 77777 --forkblock 60000
 ```
 Expected: `Pre-fork: false`, `CHAINID opcode: PASS`, `CREATE2 opcode: PASS`, `PUSH0 opcode: PASS`, `MCOPY opcode: PASS`, `TSTORE/TLOAD opcodes: PASS`, `SELFDESTRUCT (EIP-6780): PASS`, `EVM upgrade check: PASS` (exit code 0).
+
+---
+
+## STATICCALL check (fork 70000)
+
+After upgrading, you can validate STATICCALL activation with the built-in test:
+```
+go test ./core/vm -run TestStaticcallFork
+```
 
 ---
 

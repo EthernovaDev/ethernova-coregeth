@@ -1,22 +1,16 @@
 $ErrorActionPreference = "Stop"
 
-Write-Host "Building ethernova.exe (Windows)..."
+Write-Host "Building ethernova.exe (Windows amd64, CGO disabled)..."
 
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
-$mingw = "C:\msys64\mingw64\bin"
-if (-not (Test-Path $mingw)) {
-    $mingw = "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin"
-}
-
-$env:PATH = "$mingw;$env:PATH"
-$env:CC = Join-Path $mingw "gcc.exe"
-$env:CGO_ENABLED = "1"
+$env:CGO_ENABLED = "0"
+$env:GOOS = "windows"
+$env:GOARCH = "amd64"
 
 if (-not (Test-Path "bin")) { New-Item -ItemType Directory -Force -Path "bin" | Out-Null }
 
 go build -o "bin\ethernova.exe" .\cmd\geth
-Write-Host "Building EthernovaNode.exe (launcher)..."
-go build -o "bin\EthernovaNode.exe" .\cmd\ethernova-launcher
+go build -o "bin\evmcheck.exe" .\cmd\evmcheck
 
-Write-Host "Built bin\ethernova.exe and bin\EthernovaNode.exe"
+Write-Host "Built bin\ethernova.exe and bin\evmcheck.exe"
