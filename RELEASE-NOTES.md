@@ -1,3 +1,9 @@
+# Ethernova v1.2.5
+
+- Hardfork at block 138392 switches chainId to 121525 (0x1dab5).
+- Pre-fork dual-accept of 77777/121525; post-fork only 121525.
+- RPC eth_chainId returns 121525; scripts default networkid 121525; no genesis re-init required.
+
 # Ethernova v1.2.4
 
 - Hardfork 1.2.4 at block 70000 enables Byzantium base (EIP-214 STATICCALL) to fix contract-to-contract view calls.

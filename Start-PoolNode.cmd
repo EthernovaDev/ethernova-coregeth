@@ -63,7 +63,7 @@ if %errorlevel%==0 (
 )
 
 echo Starting pool node on http://127.0.0.1:%HTTPPORT% (ws %WSPORT%)...
-start "" /B "%BINARY%" --datadir "%DATADIR%" --networkid 77777 --port 30303 --http --http.addr 127.0.0.1 --http.port %HTTPPORT% --http.api eth,net,web3,txpool --ws --ws.addr 127.0.0.1 --ws.port %WSPORT% --ws.api eth,net,web3,txpool --mine --miner.etherbase %ETHERBASE% --miner.threads 1 --verbosity 3 1>>"%NODELOG%" 2>>"%NODEERR%"
+start "" /B "%BINARY%" --datadir "%DATADIR%" --networkid 121525 --port 30303 --http --http.addr 127.0.0.1 --http.port %HTTPPORT% --http.api eth,net,web3,txpool --ws --ws.addr 127.0.0.1 --ws.port %WSPORT% --ws.api eth,net,web3,txpool --mine --miner.etherbase %ETHERBASE% --miner.threads 1 --verbosity 3 1>>"%NODELOG%" 2>>"%NODEERR%"
 
 echo Waiting for RPC...
 timeout /t 8 >nul

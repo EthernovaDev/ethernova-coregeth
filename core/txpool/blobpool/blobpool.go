@@ -323,10 +323,11 @@ func New(config Config, chain BlockChain) *BlobPool {
 	// Sanitize the input to ensure no vulnerable gas prices are set
 	config = (&config).sanitize()
 
+	head := chain.CurrentBlock()
 	// Create the transaction pool with its initial settings
 	return &BlobPool{
 		config: config,
-		signer: types.LatestSigner(chain.Config()),
+		signer: types.TxPoolSigner(chain.Config(), head),
 		chain:  chain,
 		lookup: make(map[common.Hash]uint64),
 		index:  make(map[common.Address][]*blobTxMeta),
@@ -370,6 +371,7 @@ func (p *BlobPool) Init(gasTip uint64, head *types.Header, reserve txpool.Addres
 		return err
 	}
 	p.head, p.state = head, state
+	p.signer = types.TxPoolSigner(p.chain.Config(), head)
 
 	// Index all transactions on disk and delete anything unprocessable
 	var fails []uint64
@@ -796,6 +798,7 @@ func (p *BlobPool) Reset(oldHead, newHead *types.Header) {
 	}
 	p.head = newHead
 	p.state = statedb
+	p.signer = types.TxPoolSigner(p.chain.Config(), newHead)
 
 	// Run the reorg between the old and new head and figure out which accounts
 	// need to be rechecked and which transactions need to be readded

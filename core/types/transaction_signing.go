@@ -24,6 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params/ethernova"
 	"github.com/ethereum/go-ethereum/params/types/ctypes"
 )
 
@@ -38,22 +39,33 @@ type sigCache struct {
 
 // MakeSigner returns a Signer based on the given chain config and block number.
 func MakeSigner(config ctypes.ChainConfigurator, blockNumber *big.Int, blockTime uint64) Signer {
-	var signer Signer
+	chainID := config.GetChainID()
+	if ethernova.IsEthernovaChainID(chainID) {
+		if ethernova.IsPreSwitch(blockNumber) {
+			primary := makeSigner(config, blockNumber, blockTime, ethernova.NewChainIDBig)
+			fallback := makeSigner(config, blockNumber, blockTime, ethernova.OldChainIDBig)
+			return newDualSigner(primary, fallback)
+		}
+		return makeSigner(config, blockNumber, blockTime, ethernova.NewChainIDBig)
+	}
+	return makeSigner(config, blockNumber, blockTime, chainID)
+}
+
+func makeSigner(config ctypes.ChainConfigurator, blockNumber *big.Int, blockTime uint64, chainID *big.Int) Signer {
 	switch {
 	case config.IsEnabledByTime(config.GetEIP4844TransitionTime, &blockTime), config.IsEnabled(config.GetEIP4844Transition, blockNumber):
-		signer = NewCancunSigner(config.GetChainID())
+		return NewCancunSigner(chainID)
 	case config.IsEnabled(config.GetEIP1559Transition, blockNumber):
-		signer = NewEIP1559Signer(config.GetChainID())
+		return NewEIP1559Signer(chainID)
 	case config.IsEnabled(config.GetEIP2930Transition, blockNumber):
-		signer = NewEIP2930Signer(config.GetChainID())
+		return NewEIP2930Signer(chainID)
 	case config.IsEnabled(config.GetEIP155Transition, blockNumber):
-		signer = NewEIP155Signer(config.GetChainID())
+		return NewEIP155Signer(chainID)
 	case config.IsEnabled(config.GetEIP2Transition, blockNumber):
-		signer = HomesteadSigner{}
+		return HomesteadSigner{}
 	default:
-		signer = FrontierSigner{}
+		return FrontierSigner{}
 	}
-	return signer
 }
 
 // LatestSigner returns the 'most permissive' Signer available for the given chain
@@ -79,6 +91,17 @@ func LatestSigner(config ctypes.ChainConfigurator) Signer {
 		}
 	}
 	return HomesteadSigner{}
+}
+
+// TxPoolSigner returns the signer to use for txpool-style sender recovery.
+func TxPoolSigner(config ctypes.ChainConfigurator, head *Header) Signer {
+	if config == nil {
+		return HomesteadSigner{}
+	}
+	if ethernova.IsEthernovaChainID(config.GetChainID()) && head != nil {
+		return MakeSigner(config, head.Number, head.Time)
+	}
+	return LatestSigner(config)
 }
 
 // LatestSignerForChainID returns the 'most permissive' Signer available. Specifically,

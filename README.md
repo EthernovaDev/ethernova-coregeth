@@ -44,10 +44,11 @@
 
 | Network            | chainId | networkId | Consensus  | Genesis file            | Block 0 hash                                                |
 |--------------------|--------:|----------:|------------|-------------------------|------------------------------------------------------------|
-| Ethernova Mainnet  | 77777   | 77777     | Ethash PoW | `genesis-mainnet.json`  | `0xc67bd6160c1439360ab14abf7414e8f07186f3bed095121df3f3b66fdc6c2183` |
+| Ethernova Mainnet  | 121525  | 121525    | Ethash PoW | `genesis-mainnet.json`  | `0xc67bd6160c1439360ab14abf7414e8f07186f3bed095121df3f3b66fdc6c2183` |
 | Ethernova Dev      | 77778   | 77778     | Ethash PoW | `genesis-dev.json`      | (derive via verify script after init)                      |
 
 ---
+Note: `genesis-mainnet.json` still encodes chainId 77777. v1.2.5 switches the runtime chainId to 121525 at block 138392 without a re-init.
 
 ## Quickstart (Windows)
 
@@ -92,7 +93,7 @@ powershell -ExecutionPolicy Bypass -File scripts/run-mainnet-node.ps1 -Etherbase
 powershell -ExecutionPolicy Bypass -File scripts/test-rpc.ps1 -Endpoint http://127.0.0.1:8545
 ```
 Expected:
-- `eth_chainId` == 0x12fd1 (77777)
+- `eth_chainId` == 0x1dab5 (121525)
 - Genesis/block0 matches fingerprint
 - `eth_getWork` responds when mining/getWork is enabled
 

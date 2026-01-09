@@ -92,9 +92,18 @@ if (-not (Test-Path $GenesisPath)) {
 $gen = Get-Content -Raw -Path $GenesisPath | ConvertFrom-Json
 $cfg = $gen.config
 
+if (-not $cfg.networkId) { $cfg | Add-Member -NotePropertyName networkId -NotePropertyValue $cfg.chainId -Force }
+
+$expectedChainId = [string]$cfg.chainId
+$expectedNetworkId = [string]$cfg.networkId
+if ($expectedChainId -eq "77777") {
+  $expectedChainId = "121525"
+  $expectedNetworkId = "121525"
+}
+
 $expected = [ordered]@{
-  "ChainId"          = [string]$cfg.chainId
-  "NetworkId"        = [string]$cfg.networkId
+  "ChainId"          = $expectedChainId
+  "NetworkId"        = $expectedNetworkId
   "Consensus"        = "Ethash"
   "GenesisHash"      = (Normalize-Hex $ExpectedGenesisHash)
   "BaseFeeVault"     = (Normalize-Hex $cfg.baseFeeVault)

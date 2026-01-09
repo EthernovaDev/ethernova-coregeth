@@ -243,12 +243,13 @@ func New(config Config, chain BlockChain) *LegacyPool {
 	// Sanitize the input to ensure no vulnerable gas prices are set
 	config = (&config).sanitize()
 
+	head := chain.CurrentBlock()
 	// Create the transaction pool with its initial settings
 	pool := &LegacyPool{
 		config:          config,
 		chain:           chain,
 		chainconfig:     chain.Config(),
-		signer:          types.LatestSigner(chain.Config()),
+		signer:          types.TxPoolSigner(chain.Config(), head),
 		pending:         make(map[common.Address]*list),
 		queue:           make(map[common.Address]*list),
 		beats:           make(map[common.Address]time.Time),
@@ -308,6 +309,8 @@ func (pool *LegacyPool) Init(gasTip uint64, head *types.Header, reserve txpool.A
 	pool.currentHead.Store(head)
 	pool.currentState = statedb
 	pool.pendingNonces = newNoncer(statedb)
+	pool.signer = types.TxPoolSigner(pool.chainconfig, head)
+	pool.locals.signer = pool.signer
 
 	// Start the reorg loop early, so it can handle requests generated during
 	// journal loading.
@@ -1430,6 +1433,8 @@ func (pool *LegacyPool) reset(oldHead, newHead *types.Header) {
 	pool.currentHead.Store(newHead)
 	pool.currentState = statedb
 	pool.pendingNonces = newNoncer(statedb)
+	pool.signer = types.TxPoolSigner(pool.chainconfig, newHead)
+	pool.locals.signer = pool.signer
 
 	// Inject any transactions discarded due to reorgs
 	log.Debug("Reinjecting stale transactions", "count", len(reinject))

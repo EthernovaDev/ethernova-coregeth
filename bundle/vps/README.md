@@ -69,7 +69,7 @@ export ETHERBASE=0xYourPoolAddress
 ```
 
 ## Archivos importantes
-- Mainnet genesis: `genesis-mainnet.json` (chainId 77777)
+- Mainnet genesis: `genesis-mainnet.json` (chainId 77777; runtime chainId 121525 from block 138392)
 - Dev genesis: `genesis-dev.json` (chainId 77778)
 - Bootnodes: `networks/mainnet/bootnodes.txt`
 - Static peers: `networks/mainnet/static-nodes.json` (se copia al datadir en init)

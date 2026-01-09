@@ -224,7 +224,7 @@ if ($Bootnodes) {
 
 $Args = @(
     "--datadir", $DataDir,
-    "--networkid", "77777",
+    "--networkid", "121525",
     "--http", "--http.addr", "127.0.0.1", "--http.port", "$HttpPort",
     "--http.api", "eth,net,web3,debug",
     "--ws", "--ws.addr", "127.0.0.1", "--ws.port", "$WsPort",

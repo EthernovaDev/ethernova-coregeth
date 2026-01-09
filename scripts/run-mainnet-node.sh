@@ -131,7 +131,7 @@ fi
 
 ARGS=(
   --datadir "$DATA_DIR"
-  --networkid 77777
+  --networkid 121525
   --http --http.addr 127.0.0.1 --http.port "$HTTP_PORT" --http.api eth,net,web3,debug
   --ws --ws.addr 127.0.0.1 --ws.port "$WS_PORT" --ws.api eth,net,web3,debug
 )

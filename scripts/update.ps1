@@ -1,5 +1,5 @@
 param(
-    [string]$ReleaseVersion = "v1.2.4",
+    [string]$ReleaseVersion = "v1.2.5",
     [string]$GitHubRepo = "",
     [string]$BaseUrl = ""
 )
@@ -99,6 +99,28 @@ if ($DryRun) {
     exit 0
 }
 
+Write-Info "Backing up existing binaries (if any)..."
+$backupRoot = Join-Path $Root "backup"
+$timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$backupDir = Join-Path $backupRoot $timestamp
+$candidates = @(
+    (Join-Path $Root "bin\\ethernova.exe"),
+    (Join-Path $Root "ethernova.exe")
+)
+$backedUp = $false
+foreach ($candidate in $candidates) {
+    if (Test-Path $candidate) {
+        if (-not $backedUp) {
+            New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
+            $backedUp = $true
+        }
+        Copy-Item $candidate (Join-Path $backupDir (Split-Path $candidate -Leaf)) -Force
+    }
+}
+if ($backedUp) {
+    Write-Info "Backup stored at $backupDir"
+}
+
 Write-Info "Stopping running ethernova process (if any)..."
 Get-Process ethernova -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
@@ -120,6 +142,24 @@ foreach ($name in @("genesis-mainnet.json", "genesis-upgrade-60000.json", "genes
     if ($src) {
         Copy-Item $src.FullName (Join-Path $genesisDir $name) -Force
         Write-Info "Updated genesis\\$name"
+    }
+}
+
+$srcScriptsDir = Get-ChildItem -Path $TempDir -Recurse -Directory -Filter "scripts" |
+    Where-Object { Test-Path (Join-Path $_.FullName "run-mainnet-node.ps1") } |
+    Select-Object -First 1
+$destScriptsDir = Join-Path $Root "scripts"
+if ($srcScriptsDir) {
+    if (-not (Test-Path $destScriptsDir)) { New-Item -ItemType Directory -Force -Path $destScriptsDir | Out-Null }
+    Copy-Item (Join-Path $srcScriptsDir.FullName "*") $destScriptsDir -Recurse -Force
+    Write-Info "Updated scripts\\"
+}
+
+foreach ($name in @("run-node.bat", "update.bat", "update-1.2.5.bat", "update.ps1", "README-WINDOWS.txt")) {
+    $src = Get-ChildItem -Path $TempDir -Recurse -Filter $name | Select-Object -First 1
+    if ($src) {
+        Copy-Item $src.FullName (Join-Path $Root $name) -Force
+        Write-Info "Updated $name"
     }
 }
 

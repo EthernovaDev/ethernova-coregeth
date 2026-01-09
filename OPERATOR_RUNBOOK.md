@@ -1,8 +1,10 @@
 # OPERATOR_RUNBOOK.md
 
-## Scheduled Hard Fork Upgrade at Blocks 60000 and 70000
+## Scheduled Hard Fork Upgrade at Blocks 60000, 70000, and 138392
 
-This runbook describes how to safely upgrade your node to activate new EVM features at blocks 60000 and 70000 without resetting chain history.
+This runbook describes how to safely upgrade your node to activate new EVM features at blocks 60000 and 70000 and the chainId switch at block 138392 without resetting chain history.
+
+Ethernova v1.2.5 switches chainId from 77777 to 121525 at block 138392. This is a runtime change; no genesis re-init is required.
 
 ---
 
@@ -79,16 +81,24 @@ This updates the chain config stored in the DB while preserving the genesis hash
 
 ---
 
+## ChainId switch (block 138392)
+
+- No genesis re-init required.
+- Upgrade before block 138392 so txs signed with chainId 121525 are accepted.
+- Ensure your start scripts/services use `--networkid 121525` to avoid old peers.
+
+---
+
 ## 4. Restart the Node
 
 **Windows:**
 ```
-ethernova.exe --datadir <your-datadir> --networkid 77777 --mine ...
+ethernova.exe --datadir <your-datadir> --networkid 121525 --mine ...
 ```
 
 **Linux:**
 ```
-ethernova --datadir <your-datadir> --networkid 77777 --mine ...
+ethernova --datadir <your-datadir> --networkid 121525 --mine ...
 ```
 
 ---
@@ -111,13 +121,13 @@ ethernova --datadir <your-datadir> --networkid 77777 --mine ...
 
 **Pre-fork (block < 60000), expected FAIL:**
 ```
-.\evmcheck.exe --rpc http://HOST:8545 --pk 0xHEX --chainid 77777 --forkblock 60000
+.\evmcheck.exe --rpc http://HOST:8545 --pk 0xHEX --chainid 121525 --forkblock 60000
 ```
 Expected: `Pre-fork: true`, `CHAINID opcode: FAIL`, `CREATE2 opcode: FAIL`, `PUSH0 opcode: FAIL`, `MCOPY opcode: FAIL`, `TSTORE/TLOAD opcodes: FAIL`, `SELFDESTRUCT (EIP-6780): FAIL`, `EVM upgrade check: FAIL` (exit code 1).
 
 **Post-fork (block >= 60000), expected PASS:**
 ```
-.\evmcheck.exe --rpc http://HOST:8545 --pk 0xHEX --chainid 77777 --forkblock 60000
+.\evmcheck.exe --rpc http://HOST:8545 --pk 0xHEX --chainid 121525 --forkblock 60000
 ```
 Expected: `Pre-fork: false`, `CHAINID opcode: PASS`, `CREATE2 opcode: PASS`, `PUSH0 opcode: PASS`, `MCOPY opcode: PASS`, `TSTORE/TLOAD opcodes: PASS`, `SELFDESTRUCT (EIP-6780): PASS`, `EVM upgrade check: PASS` (exit code 0).
 

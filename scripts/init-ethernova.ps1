@@ -33,6 +33,10 @@ if ($Mode -eq "dev" -and $chainId -ne 77778) {
     throw "Mode=dev/test requires chainId 77778 (or non-mainnet), got $chainId. Avoid mixing genesis files."
 }
 
+if ($Mode -eq "mainnet") {
+    $networkId = 121525
+}
+
 $dataDirName = if ($Mode -eq "mainnet") { "data-mainnet" } else { "data-dev" }
 $DataDir = Join-Path $Root $dataDirName
 $KeystorePath = Join-Path $DataDir "keystore"

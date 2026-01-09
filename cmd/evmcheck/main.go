@@ -45,7 +45,7 @@ func main() {
 	flag.Parse()
 
 	if *rpcURL == "" || *pkHex == "" || *chainIDFlag == 0 {
-		fmt.Fprintln(os.Stderr, "Usage: evmcheck.exe --rpc http://HOST:8545 --pk 0xHEX --chainid 77777 --forkblock 60000")
+		fmt.Fprintln(os.Stderr, "Usage: evmcheck.exe --rpc http://HOST:8545 --pk 0xHEX --chainid 121525 --forkblock 60000")
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
