@@ -12,7 +12,7 @@ case "$MODE" in
     ;;
 esac
 
-expected="0x12fd1" # 77777
+expected="0x1dab5" # 121525
 if [[ "$MODE" == "dev" ]]; then
   expected="0x12fd2" # 77778
 fi
@@ -71,4 +71,3 @@ if [[ "${got,,}" != "${expected,,}" ]]; then
 fi
 
 echo "OK: eth_chainId=$got ($MODE)"
-

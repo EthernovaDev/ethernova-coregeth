@@ -21,7 +21,7 @@ const (
 	fallbackHTTP    = 8547
 	fallbackWS      = 8548
 
-	mainnetNetworkID = "77777"
+	mainnetNetworkID = "121525"
 	genesisHashExp   = "0xc67bd6160c1439360ab14abf7414e8f07186f3bed095121df3f3b66fdc6c2183"
 )
 
@@ -257,8 +257,8 @@ func checkRPC(port int) {
 		fmt.Printf("WARN: RPC not reachable yet (%v). Check logs.\n", err)
 		return
 	}
-	if strings.EqualFold(chainID, "0x12fd1") {
-		fmt.Println("RPC OK (chainId=77777)")
+	if strings.EqualFold(chainID, "0x1dab5") {
+		fmt.Println("RPC OK (chainId=121525)")
 	} else {
 		fmt.Printf("WARN: RPC chainId unexpected: %s\n", chainID)
 	}

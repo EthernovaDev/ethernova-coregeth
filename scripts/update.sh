@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-RELEASE_VERSION="${RELEASE_VERSION:-v1.2.4}"
+RELEASE_VERSION="${RELEASE_VERSION:-v1.2.5}"
 RELEASE_URL_BASE="${RELEASE_URL_BASE:-}"
 GITHUB_REPO="${GITHUB_REPO:-}"
 
@@ -69,6 +69,23 @@ if [[ "${DRY_RUN:-}" == "1" ]]; then
   exit 0
 fi
 
+echo "Backing up existing binaries (if any)..."
+backup_dir="$ROOT_DIR/backup/$(date +%Y%m%d-%H%M%S)"
+backed_up=false
+if [[ -f "$ROOT_DIR/bin/ethernova" ]]; then
+  mkdir -p "$backup_dir"
+  cp "$ROOT_DIR/bin/ethernova" "$backup_dir/ethernova"
+  backed_up=true
+fi
+if [[ -f "$ROOT_DIR/ethernova" ]]; then
+  mkdir -p "$backup_dir"
+  cp "$ROOT_DIR/ethernova" "$backup_dir/ethernova-root"
+  backed_up=true
+fi
+if [[ "$backed_up" == true ]]; then
+  echo "Backup stored at $backup_dir"
+fi
+
 echo "Extracting update..."
 tar -xzf "$TEMP_DIR/$TARBALL" -C "$TEMP_DIR"
 
@@ -91,6 +108,26 @@ for name in genesis-mainnet.json genesis-upgrade-60000.json genesis-upgrade-7000
   if [[ -n "$src" ]]; then
     cp "$src" "$genesis_dir/$name"
     echo "Updated genesis/$name"
+  fi
+done
+
+src_scripts_dir="$(find "$TEMP_DIR" -type f -name run-mainnet-node.sh -print -quit || true)"
+if [[ -n "$src_scripts_dir" ]]; then
+  src_scripts_dir="$(dirname "$src_scripts_dir")"
+  mkdir -p "$ROOT_DIR/scripts"
+  cp -a "$src_scripts_dir/." "$ROOT_DIR/scripts/"
+  chmod +x "$ROOT_DIR/scripts/"*.sh 2>/dev/null || true
+  echo "Updated scripts/"
+fi
+
+for name in update.sh update-1.2.5.sh install.sh README-LINUX.txt; do
+  src="$(find "$TEMP_DIR" -type f -name "$name" | head -n 1 || true)"
+  if [[ -n "$src" ]]; then
+    cp "$src" "$ROOT_DIR/$name"
+    if [[ "$name" == *.sh ]]; then
+      chmod +x "$ROOT_DIR/$name" 2>/dev/null || true
+    fi
+    echo "Updated $name"
   fi
 done
 

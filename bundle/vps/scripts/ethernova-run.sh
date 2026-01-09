@@ -52,6 +52,10 @@ print(network_id)
 PY
 )"
 
+if [[ "$MODE" == "mainnet" ]]; then
+  network_id="121525"
+fi
+
 DATADIR="${DATADIR:-$ROOT_DIR/data-${MODE}}"
 
 HTTP_ADDR="${HTTP_ADDR:-127.0.0.1}"
@@ -131,4 +135,3 @@ echo "P2P:      $P2P_PORT (tcp/udp)"
 echo
 
 exec "$BIN" "${args[@]}"
-

@@ -45,6 +45,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/params/ethernova"
 	"github.com/ethereum/go-ethereum/params/types/ctypes"
 	"github.com/ethereum/go-ethereum/params/vars"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -462,7 +463,7 @@ func (s *PersonalAccountAPI) signTransaction(ctx context.Context, args *Transact
 	// Assemble the transaction and sign with the wallet
 	tx := args.toTransaction()
 
-	return wallet.SignTxWithPassphrase(account, passwd, tx, s.b.ChainConfig().GetChainID())
+	return wallet.SignTxWithPassphrase(account, passwd, tx, (*big.Int)(args.ChainID))
 }
 
 // SendTransaction will create a transaction from the given arguments and
@@ -637,7 +638,11 @@ func NewBlockChainAPI(b Backend) *BlockChainAPI {
 // wasn't synced up to a block where EIP-155 is enabled, but this behavior caused issues
 // in CL clients.
 func (api *BlockChainAPI) ChainId() *hexutil.Big {
-	return (*hexutil.Big)(api.b.ChainConfig().GetChainID())
+	chainID := api.b.ChainConfig().GetChainID()
+	if ethernova.IsEthernovaChainID(chainID) {
+		return (*hexutil.Big)(new(big.Int).Set(ethernova.NewChainIDBig))
+	}
+	return (*hexutil.Big)(chainID)
 }
 
 // BlockNumber returns the block number of the chain head.
@@ -1697,15 +1702,11 @@ func AccessList(ctx context.Context, b Backend, blockNrOrHash rpc.BlockNumberOrH
 type TransactionAPI struct {
 	b         Backend
 	nonceLock *AddrLocker
-	signer    types.Signer
 }
 
 // NewTransactionAPI creates a new RPC service with methods for interacting with transactions.
 func NewTransactionAPI(b Backend, nonceLock *AddrLocker) *TransactionAPI {
-	// The signer used by the API should always be the 'latest' known one because we expect
-	// signers to be backwards-compatible with old transactions.
-	signer := types.LatestSigner(b.ChainConfig())
-	return &TransactionAPI{b, nonceLock, signer}
+	return &TransactionAPI{b, nonceLock}
 }
 
 // GetBlockTransactionCountByNumber returns the number of transactions in the block with the given block number.
@@ -1884,7 +1885,7 @@ func marshalReceipt(receipt *types.Receipt, blockHash common.Hash, blockNumber u
 }
 
 // sign is a helper function that signs a transaction with the private key of the given address.
-func (s *TransactionAPI) sign(addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
+func (s *TransactionAPI) sign(addr common.Address, tx *types.Transaction, chainID *big.Int) (*types.Transaction, error) {
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: addr}
 
@@ -1892,8 +1893,14 @@ func (s *TransactionAPI) sign(addr common.Address, tx *types.Transaction) (*type
 	if err != nil {
 		return nil, err
 	}
+	if chainID == nil {
+		chainID = s.b.ChainConfig().GetChainID()
+		if ethernova.IsEthernovaChainID(chainID) {
+			chainID = ethernova.NewChainIDBig
+		}
+	}
 	// Request the wallet to sign the transaction
-	return wallet.SignTx(account, tx, s.b.ChainConfig().GetChainID())
+	return wallet.SignTx(account, tx, chainID)
 }
 
 // SubmitTransaction is a helper function that submits tx to txPool and logs a message.
@@ -1958,7 +1965,7 @@ func (s *TransactionAPI) SendTransaction(ctx context.Context, args TransactionAr
 	// Assemble the transaction and sign with the wallet
 	tx := args.toTransaction()
 
-	signed, err := wallet.SignTx(account, tx, s.b.ChainConfig().GetChainID())
+	signed, err := wallet.SignTx(account, tx, (*big.Int)(args.ChainID))
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -2049,7 +2056,7 @@ func (s *TransactionAPI) SignTransaction(ctx context.Context, args TransactionAr
 	if err := checkTxFee(tx.GasPrice(), tx.Gas(), s.b.RPCTxFeeCap()); err != nil {
 		return nil, err
 	}
-	signed, err := s.sign(args.from(), tx)
+	signed, err := s.sign(args.from(), tx, (*big.Int)(args.ChainID))
 	if err != nil {
 		return nil, err
 	}
@@ -2067,6 +2074,7 @@ func (s *TransactionAPI) PendingTransactions() ([]*RPCTransaction, error) {
 	if err != nil {
 		return nil, err
 	}
+	signer := types.TxPoolSigner(s.b.ChainConfig(), s.b.CurrentHeader())
 	accounts := make(map[common.Address]struct{})
 	for _, wallet := range s.b.AccountManager().Wallets() {
 		for _, account := range wallet.Accounts() {
@@ -2076,7 +2084,7 @@ func (s *TransactionAPI) PendingTransactions() ([]*RPCTransaction, error) {
 	curHeader := s.b.CurrentHeader()
 	transactions := make([]*RPCTransaction, 0, len(pending))
 	for _, tx := range pending {
-		from, _ := types.Sender(s.signer, tx)
+		from, _ := types.Sender(signer, tx)
 		if _, exists := accounts[from]; exists {
 			transactions = append(transactions, NewRPCPendingTransaction(tx, curHeader, s.b.ChainConfig()))
 		}
@@ -2094,6 +2102,15 @@ func (s *TransactionAPI) Resend(ctx context.Context, sendArgs TransactionArgs, g
 		return common.Hash{}, err
 	}
 	matchTx := sendArgs.toTransaction()
+	senderSigner := types.TxPoolSigner(s.b.ChainConfig(), s.b.CurrentHeader())
+	chainID := (*big.Int)(sendArgs.ChainID)
+	if chainID == nil {
+		chainID = s.b.ChainConfig().GetChainID()
+		if ethernova.IsEthernovaChainID(chainID) {
+			chainID = ethernova.NewChainIDBig
+		}
+	}
+	matchSigner := types.LatestSignerForChainID(chainID)
 
 	// Before replacing the old transaction, ensure the _new_ transaction fee is reasonable.
 	var price = matchTx.GasPrice()
@@ -2112,10 +2129,10 @@ func (s *TransactionAPI) Resend(ctx context.Context, sendArgs TransactionArgs, g
 	if err != nil {
 		return common.Hash{}, err
 	}
+	wantSigHash := matchSigner.Hash(matchTx)
 	for _, p := range pending {
-		wantSigHash := s.signer.Hash(matchTx)
-		pFrom, err := types.Sender(s.signer, p)
-		if err == nil && pFrom == sendArgs.from() && s.signer.Hash(p) == wantSigHash {
+		pFrom, err := types.Sender(senderSigner, p)
+		if err == nil && pFrom == sendArgs.from() && matchSigner.Hash(p) == wantSigHash {
 			// Match. Re-sign and send the transaction.
 			if gasPrice != nil && (*big.Int)(gasPrice).Sign() != 0 {
 				sendArgs.GasPrice = gasPrice
@@ -2123,7 +2140,7 @@ func (s *TransactionAPI) Resend(ctx context.Context, sendArgs TransactionArgs, g
 			if gasLimit != nil && *gasLimit != 0 {
 				sendArgs.Gas = gasLimit
 			}
-			signedTx, err := s.sign(sendArgs.from(), sendArgs.toTransaction())
+			signedTx, err := s.sign(sendArgs.from(), sendArgs.toTransaction(), (*big.Int)(sendArgs.ChainID))
 			if err != nil {
 				return common.Hash{}, err
 			}

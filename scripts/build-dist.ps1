@@ -1,5 +1,7 @@
 param(
-    [string]$Version = ""
+    [string]$Version = "",
+    [switch]$WindowsOnly,
+    [switch]$LinuxOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -12,7 +14,7 @@ if (-not (Test-Path $PackageScript)) {
 }
 
 if ($Version) {
-    & $PackageScript -Version $Version
+    & $PackageScript -Version $Version -WindowsOnly:$WindowsOnly -LinuxOnly:$LinuxOnly
 } else {
-    & $PackageScript
+    & $PackageScript -WindowsOnly:$WindowsOnly -LinuxOnly:$LinuxOnly
 }

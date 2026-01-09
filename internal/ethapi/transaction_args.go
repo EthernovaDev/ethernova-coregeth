@@ -32,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params/ethernova"
 	"github.com/ethereum/go-ethereum/params/vars"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
@@ -172,12 +173,26 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend, skipGas
 	// If chain id is provided, ensure it matches the local chain id. Otherwise, set the local
 	// chain id as the default.
 	want := b.ChainConfig().GetChainID()
-	if args.ChainID != nil {
-		if have := (*big.Int)(args.ChainID); have.Cmp(want) != 0 {
-			return fmt.Errorf("chainId does not match node's (have=%v, want=%v)", have, want)
+	if ethernova.IsEthernovaChainID(want) {
+		head := b.CurrentHeader()
+		allowOld := head == nil || ethernova.IsPreSwitch(head.Number)
+		want = ethernova.NewChainIDBig
+		if args.ChainID != nil {
+			have := (*big.Int)(args.ChainID)
+			if have.Cmp(want) != 0 && !(allowOld && have.Cmp(ethernova.OldChainIDBig) == 0) {
+				return fmt.Errorf("chainId does not match node's (have=%v, want=%v)", have, want)
+			}
+		} else {
+			args.ChainID = (*hexutil.Big)(new(big.Int).Set(want))
 		}
 	} else {
-		args.ChainID = (*hexutil.Big)(want)
+		if args.ChainID != nil {
+			if have := (*big.Int)(args.ChainID); have.Cmp(want) != 0 {
+				return fmt.Errorf("chainId does not match node's (have=%v, want=%v)", have, want)
+			}
+		} else {
+			args.ChainID = (*hexutil.Big)(want)
+		}
 	}
 	return nil
 }

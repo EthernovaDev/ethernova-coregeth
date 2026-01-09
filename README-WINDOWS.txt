@@ -1,4 +1,4 @@
-Ethernova v1.2.4 - Windows Bundle
+Ethernova v1.2.5 - Windows Bundle
 
 Quick start
 1) Extract the zip to a folder.
@@ -15,10 +15,11 @@ Defaults
 - Logs: node.log
 
 Update (no data wipe)
-- Double-click: update.bat
-- This replaces ethernova.exe and genesis upgrade files only.
+- Double-click: update-1.2.5.bat (or update.bat)
+- This replaces ethernova.exe, scripts, and upgrade genesis files only.
 
 Important
-- Upgrade BEFORE block 70000.
+- Upgrade BEFORE block 138392 (chainId switch).
+- If not done yet, run scripts\apply-upgrade-mainnet.bat (fork 70000 config update).
 - Do NOT replace the genesis file inside your datadir.
 - Bootnodes can be set in network\bootnodes.txt
