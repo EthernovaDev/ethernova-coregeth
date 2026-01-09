@@ -70,9 +70,9 @@ jobs:
           cp "dist/dist-windows/ethernova-windows-amd64-${{ github.ref_name }}.zip" release/
           cp "dist/dist-linux/ethernova-linux-amd64-${{ github.ref_name }}.tar.gz" release/
           sha256sum release/* > release/checksums-sha256.txt
-          release_doc="RELEASE_${{ github.ref_name }}.md"
-          notes_doc="RELEASE_NOTES_${{ github.ref_name }}.md"
-          upgrade_doc="docs/UPGRADE_RUNBOOK_${{ github.ref_name }}.md"
+          release_doc="docs/releases/RELEASE_${{ github.ref_name }}.md"
+          notes_doc="docs/releases/RELEASE_NOTES_${{ github.ref_name }}.md"
+          upgrade_doc="docs/runbooks/UPGRADE_RUNBOOK_${{ github.ref_name }}.md"
           if [[ -f "$release_doc" ]]; then
             cp "$release_doc" release/
           fi

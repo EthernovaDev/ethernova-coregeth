@@ -65,6 +65,7 @@ les/transactions.rlp
 /data-dev/
 /data-mainnet/
 /data-node2-*/
+/data-*/
 /logs/
 /dist/
 /bin/
@@ -82,7 +83,10 @@ evmcheck.exe
 # local test/build artifacts
 data-devnet*/
 stage-win/
+stage-*/
 *.zip
 *.tar.gz
 *.sha256
+checksums-sha256.txt
+*.log
 

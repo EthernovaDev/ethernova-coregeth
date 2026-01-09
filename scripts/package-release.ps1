@@ -94,29 +94,30 @@ foreach ($name in $genesisFiles) {
     if ($buildLinux) { Copy-Into -Source (Join-Path $RepoRoot $name) -Destination (Join-Path $StageLinux "genesis\\$name") }
 }
 
-# Docs (root)
+# Docs (repo -> package root)
 $rootDocs = @(
-    "OPERATOR_RUNBOOK.md",
-    "README_QUICKSTART.md",
-    "RELEASE-NOTES.md",
-    "RELEASE_NOTES_v1.2.5.md",
-    "README-WINDOWS.txt",
-    "README-LINUX.txt",
-    "RELEASE_v1.2.5.md"
+    @{ Source = "docs\\runbooks\\OPERATOR_RUNBOOK.md"; Dest = "OPERATOR_RUNBOOK.md" },
+    @{ Source = "docs\\README_QUICKSTART.md"; Dest = "README_QUICKSTART.md" },
+    @{ Source = "docs\\releases\\RELEASE-NOTES.md"; Dest = "RELEASE-NOTES.md" },
+    @{ Source = "docs\\releases\\RELEASE_NOTES_v1.2.5.md"; Dest = "RELEASE_NOTES_v1.2.5.md" },
+    @{ Source = "docs\\README-WINDOWS.txt"; Dest = "README-WINDOWS.txt" },
+    @{ Source = "docs\\README-LINUX.txt"; Dest = "README-LINUX.txt" },
+    @{ Source = "docs\\releases\\RELEASE_v1.2.5.md"; Dest = "RELEASE_v1.2.5.md" }
 )
-foreach ($name in $rootDocs) {
-    if ($buildWindows) { Copy-Into -Source (Join-Path $RepoRoot $name) -Destination (Join-Path $StageWin $name) }
-    if ($buildLinux) { Copy-Into -Source (Join-Path $RepoRoot $name) -Destination (Join-Path $StageLinux $name) }
+foreach ($doc in $rootDocs) {
+    $src = Join-Path $RepoRoot $doc.Source
+    if ($buildWindows) { Copy-Into -Source $src -Destination (Join-Path $StageWin $doc.Dest) }
+    if ($buildLinux) { Copy-Into -Source $src -Destination (Join-Path $StageLinux $doc.Dest) }
 }
 
 # Docs (folder)
-$hardforkDoc = Join-Path $RepoRoot "docs\\HARDFORK_1.2.5.md"
+$hardforkDoc = Join-Path $RepoRoot "docs\\runbooks\\HARDFORK_1.2.5.md"
 if (Test-Path $hardforkDoc) {
     if ($buildWindows) { Copy-Into -Source $hardforkDoc -Destination (Join-Path $StageWin "docs\\HARDFORK_1.2.5.md") }
     if ($buildLinux) { Copy-Into -Source $hardforkDoc -Destination (Join-Path $StageLinux "docs\\HARDFORK_1.2.5.md") }
 }
 
-$upgradeDoc = Join-Path $RepoRoot "docs\\UPGRADE_RUNBOOK_v1.2.5.md"
+$upgradeDoc = Join-Path $RepoRoot "docs\\runbooks\\UPGRADE_RUNBOOK_v1.2.5.md"
 if (Test-Path $upgradeDoc) {
     if ($buildWindows) { Copy-Into -Source $upgradeDoc -Destination (Join-Path $StageWin "docs\\UPGRADE_RUNBOOK_v1.2.5.md") }
     if ($buildLinux) { Copy-Into -Source $upgradeDoc -Destination (Join-Path $StageLinux "docs\\UPGRADE_RUNBOOK_v1.2.5.md") }
@@ -147,14 +148,14 @@ if ($buildWindows) {
     Copy-Into -Source (Join-Path $RepoRoot "scripts\\update.bat") -Destination (Join-Path $StageWin "update.bat")
     Copy-Into -Source (Join-Path $RepoRoot "scripts\\update-1.2.5.bat") -Destination (Join-Path $StageWin "update-1.2.5.bat")
     Copy-Into -Source (Join-Path $RepoRoot "scripts\\update.ps1") -Destination (Join-Path $StageWin "update.ps1")
-    Copy-Into -Source (Join-Path $RepoRoot "README-WINDOWS.txt") -Destination (Join-Path $StageWin "README-WINDOWS.txt")
+    Copy-Into -Source (Join-Path $RepoRoot "docs\\README-WINDOWS.txt") -Destination (Join-Path $StageWin "README-WINDOWS.txt")
 }
 
 if ($buildLinux) {
     Copy-Into -Source (Join-Path $RepoRoot "scripts\\update.sh") -Destination (Join-Path $StageLinux "update.sh")
     Copy-Into -Source (Join-Path $RepoRoot "scripts\\update-1.2.5.sh") -Destination (Join-Path $StageLinux "update-1.2.5.sh")
     Copy-Into -Source (Join-Path $RepoRoot "scripts\\install.sh") -Destination (Join-Path $StageLinux "install.sh")
-    Copy-Into -Source (Join-Path $RepoRoot "README-LINUX.txt") -Destination (Join-Path $StageLinux "README-LINUX.txt")
+    Copy-Into -Source (Join-Path $RepoRoot "docs\\README-LINUX.txt") -Destination (Join-Path $StageLinux "README-LINUX.txt")
 }
 
 $systemdService = Join-Path $RepoRoot "systemd\\ethernova.service"
@@ -233,13 +234,13 @@ if ($checksums.Count -gt 0) {
 }
 
 $releaseDocName = "RELEASE_$Version.md"
-$releaseDocSrc = Join-Path $RepoRoot $releaseDocName
+$releaseDocSrc = Join-Path $RepoRoot "docs\\releases\\$releaseDocName"
 if (Test-Path $releaseDocSrc) {
     Copy-Into -Source $releaseDocSrc -Destination (Join-Path $DistDir $releaseDocName)
 }
 
 $upgradeDocName = "UPGRADE_RUNBOOK_v1.2.5.md"
-$upgradeDocSrc = Join-Path $RepoRoot "docs\\$upgradeDocName"
+$upgradeDocSrc = Join-Path $RepoRoot "docs\\runbooks\\$upgradeDocName"
 if (Test-Path $upgradeDocSrc) {
     Copy-Into -Source $upgradeDocSrc -Destination (Join-Path $DistDir $upgradeDocName)
 }

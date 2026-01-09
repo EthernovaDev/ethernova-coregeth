@@ -1,11 +1,15 @@
 @echo off
 setlocal EnableExtensions
-pushd "%~dp0"
+set "ROOT=%~dp0.."
+for %%I in ("%ROOT%") do set "ROOT=%%~fI"
+pushd "%ROOT%"
 
-set "BINARY=ethernova.exe"
-set "GENESIS=genesis-mainnet.json"
-set "DATADIR=data-mainnet"
-set "LOGDIR=logs"
+set "BINARY=%ROOT%\\bin\\ethernova.exe"
+if not exist "%BINARY%" set "BINARY=%ROOT%\\ethernova.exe"
+set "GENESIS=%ROOT%\\genesis\\genesis-mainnet.json"
+if not exist "%GENESIS%" set "GENESIS=%ROOT%\\genesis-mainnet.json"
+set "DATADIR=%ROOT%\\data-mainnet"
+set "LOGDIR=%ROOT%\\logs"
 set "INITLOG=%LOGDIR%\init-pool.log"
 set "INITERR=%LOGDIR%\init-pool.err.log"
 set "NODELOG=%LOGDIR%\pool-node.log"
@@ -22,16 +26,16 @@ set /p ETHERBASE=>
 
 :CHECKETHER
 if "%ETHERBASE%"=="" (
-    echo ERROR: Etherbase is required. Example: Start-PoolNode.cmd 0x1234...
+    echo ERROR: Etherbase is required. Example: scripts\\Start-PoolNode.cmd 0x1234...
     goto END
 )
 
 if not exist "%BINARY%" (
-    echo ERROR: %BINARY% not found next to this launcher.
+    echo ERROR: %BINARY% not found.
     goto END
 )
 if not exist "%GENESIS%" (
-    echo ERROR: %GENESIS% not found next to this launcher.
+    echo ERROR: %GENESIS% not found.
     goto END
 )
 
@@ -68,8 +72,8 @@ start "" /B "%BINARY%" --datadir "%DATADIR%" --networkid 121525 --port 30303 --h
 echo Waiting for RPC...
 timeout /t 8 >nul
 
-powershell -ExecutionPolicy Bypass -File "%cd%\scripts\test-rpc.ps1" -Endpoint http://127.0.0.1:%HTTPPORT%
-powershell -ExecutionPolicy Bypass -File "%cd%\scripts\verify-mainnet.ps1" -Endpoint http://127.0.0.1:%HTTPPORT%
+powershell -ExecutionPolicy Bypass -File "%ROOT%\\scripts\\test-rpc.ps1" -Endpoint http://127.0.0.1:%HTTPPORT%
+powershell -ExecutionPolicy Bypass -File "%ROOT%\\scripts\\verify-mainnet.ps1" -Endpoint http://127.0.0.1:%HTTPPORT%
 
 echo.
 echo Logs: %NODELOG% and %NODEERR%

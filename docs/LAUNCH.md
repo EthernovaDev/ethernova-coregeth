@@ -88,7 +88,7 @@ Expected: both nodes report `net.peerCount > 0`.
 
 ## Miningcore Pool Node (Windows Portable)
 1) Download the Windows release ZIP and extract.
-2) Run `Start-PoolNode.cmd 0xPOOLADDRESS` (or double-click and enter the etherbase when prompted).
+2) Run `scripts/Start-PoolNode.cmd 0xPOOLADDRESS` (or double-click and enter the etherbase when prompted).
    - Keeps datadir in `.\data-mainnet`, logs in `.\logs\pool-node.log` / `pool-node.err.log`.
    - RPC: `http://127.0.0.1:8545` (fallback 8547 if busy), WS: `127.0.0.1:8546` (fallback 8548).
    - Initializes with `genesis-mainnet.json` if needed; will not wipe data.

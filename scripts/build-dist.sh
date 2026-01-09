@@ -35,15 +35,19 @@ for name in genesis-mainnet.json genesis-upgrade-60000.json genesis-upgrade-7000
   cp "$ROOT_DIR/$name" "$STAGE_LINUX/genesis/$name"
 done
 
-for name in OPERATOR_RUNBOOK.md README_QUICKSTART.md RELEASE-NOTES.md RELEASE_NOTES_v1.2.5.md README-WINDOWS.txt README-LINUX.txt RELEASE_v1.2.5.md; do
-  cp "$ROOT_DIR/$name" "$STAGE_LINUX/$name"
-done
+cp "$ROOT_DIR/docs/runbooks/OPERATOR_RUNBOOK.md" "$STAGE_LINUX/OPERATOR_RUNBOOK.md"
+cp "$ROOT_DIR/docs/README_QUICKSTART.md" "$STAGE_LINUX/README_QUICKSTART.md"
+cp "$ROOT_DIR/docs/releases/RELEASE-NOTES.md" "$STAGE_LINUX/RELEASE-NOTES.md"
+cp "$ROOT_DIR/docs/releases/RELEASE_NOTES_v1.2.5.md" "$STAGE_LINUX/RELEASE_NOTES_v1.2.5.md"
+cp "$ROOT_DIR/docs/README-WINDOWS.txt" "$STAGE_LINUX/README-WINDOWS.txt"
+cp "$ROOT_DIR/docs/README-LINUX.txt" "$STAGE_LINUX/README-LINUX.txt"
+cp "$ROOT_DIR/docs/releases/RELEASE_v1.2.5.md" "$STAGE_LINUX/RELEASE_v1.2.5.md"
 
-if [[ -f "$ROOT_DIR/docs/HARDFORK_1.2.5.md" ]]; then
-  cp "$ROOT_DIR/docs/HARDFORK_1.2.5.md" "$STAGE_LINUX/docs/HARDFORK_1.2.5.md"
+if [[ -f "$ROOT_DIR/docs/runbooks/HARDFORK_1.2.5.md" ]]; then
+  cp "$ROOT_DIR/docs/runbooks/HARDFORK_1.2.5.md" "$STAGE_LINUX/docs/HARDFORK_1.2.5.md"
 fi
-if [[ -f "$ROOT_DIR/docs/UPGRADE_RUNBOOK_v1.2.5.md" ]]; then
-  cp "$ROOT_DIR/docs/UPGRADE_RUNBOOK_v1.2.5.md" "$STAGE_LINUX/docs/UPGRADE_RUNBOOK_v1.2.5.md"
+if [[ -f "$ROOT_DIR/docs/runbooks/UPGRADE_RUNBOOK_v1.2.5.md" ]]; then
+  cp "$ROOT_DIR/docs/runbooks/UPGRADE_RUNBOOK_v1.2.5.md" "$STAGE_LINUX/docs/UPGRADE_RUNBOOK_v1.2.5.md"
 fi
 
 if [[ -d "$ROOT_DIR/network" ]]; then
@@ -57,7 +61,7 @@ cp "$ROOT_DIR/scripts/"*.sh "$STAGE_LINUX/scripts/" 2>/dev/null || true
 cp "$ROOT_DIR/scripts/update.sh" "$STAGE_LINUX/update.sh"
 cp "$ROOT_DIR/scripts/update-1.2.5.sh" "$STAGE_LINUX/update-1.2.5.sh"
 cp "$ROOT_DIR/scripts/install.sh" "$STAGE_LINUX/install.sh"
-cp "$ROOT_DIR/README-LINUX.txt" "$STAGE_LINUX/README-LINUX.txt"
+cp "$ROOT_DIR/docs/README-LINUX.txt" "$STAGE_LINUX/README-LINUX.txt"
 
 if [[ -f "$ROOT_DIR/systemd/ethernova.service" ]]; then
   cp "$ROOT_DIR/systemd/ethernova.service" "$STAGE_LINUX/systemd/ethernova.service"
