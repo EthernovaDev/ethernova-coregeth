@@ -69,6 +69,7 @@ les/transactions.rlp
 /logs/
 /dist/
 /bin/
+/.tools/
 /geth.exe
 
 # Big VM test vectors (stored externally)

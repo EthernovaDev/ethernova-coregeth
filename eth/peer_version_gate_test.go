@@ -66,3 +66,20 @@ func TestEnforcePeerVersion(t *testing.T) {
 		t.Fatalf("expected unsupported client to be rejected")
 	}
 }
+
+func TestVerifyPeerVersionGate(t *testing.T) {
+	oldName := "CoreGeth/v1.2.5/windows-amd64/go1.20"
+	if err := enforcePeerVersion(oldName); err == nil {
+		t.Fatalf("expected old version to be rejected")
+	} else {
+		t.Logf("VERIFY_P2P_GATE: name=%q rejected err=%v", oldName, err)
+	}
+
+	min := minPeerVersion()
+	newName := fmt.Sprintf("%s/v%d.%d.%d/windows-amd64/go1.20", params.VersionName, min.major, min.minor, min.patch)
+	if err := enforcePeerVersion(newName); err != nil {
+		t.Fatalf("expected v1.2.6+ to be accepted, got %v", err)
+	} else {
+		t.Logf("VERIFY_P2P_GATE: name=%q accepted", newName)
+	}
+}
