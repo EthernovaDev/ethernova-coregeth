@@ -3,7 +3,7 @@
 Windows-only instructions to stand up and operate Ethernova mainnet nodes safely.
 
 ## Modes and chain IDs
-- Mainnet: chainId **121525** / networkId **121525** (runtime, v1.2.5+). Genesis chainId remains 77777 in `genesis-mainnet.json`.
+- Mainnet: chainId **121525** / networkId **121525** (runtime, v1.2.6+). Genesis chainId remains 77777 in `genesis-mainnet.json`.
 - Dev/Testnet: chainId/networkId **77778** (`genesis-dev.json`)
 - Scripts validate the chainId to avoid accidental cross-use.
 
@@ -35,7 +35,7 @@ Outputs `bin\ethernova.exe`. (If you use PowerShell 7, `pwsh` also works.)
 | BaseFeePerGas      | 0x3b9aca00 (1 gwei)                                                 |
 | extraData          | "NOVA MAINNET"                                                      |
 
-Runtime chainId switches to **121525** at block **138392** (no re-init required).
+Runtime chainId enforces **121525** at block **138396** (no re-init required).
 
 ## Bootnodes / static peers
 - `networks/mainnet/bootnodes.txt`: enode URLs, one per line (placeholder until you replace them).

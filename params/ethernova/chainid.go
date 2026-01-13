@@ -5,20 +5,22 @@ import "math/big"
 const (
 	OldChainID         uint64 = 77777
 	NewChainID         uint64 = 121525
-	ChainIDSwitchBlock uint64 = 138392
+	SplitFixBlock      uint64 = 138396
+	ChainIDSwitchBlock uint64 = SplitFixBlock
 )
 
 var (
 	OldChainIDBig         = new(big.Int).SetUint64(OldChainID)
 	NewChainIDBig         = new(big.Int).SetUint64(NewChainID)
-	ChainIDSwitchBlockBig = new(big.Int).SetUint64(ChainIDSwitchBlock)
+	SplitFixBlockBig      = new(big.Int).SetUint64(SplitFixBlock)
+	ChainIDSwitchBlockBig = SplitFixBlockBig
 )
 
 func IsPreSwitch(number *big.Int) bool {
 	if number == nil {
 		return true
 	}
-	return number.Cmp(ChainIDSwitchBlockBig) < 0
+	return number.Cmp(SplitFixBlockBig) < 0
 }
 
 func ChainIDForBlock(number *big.Int) *big.Int {

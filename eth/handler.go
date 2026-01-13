@@ -377,6 +377,10 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 		peer.Log().Debug("Ethereum handshake failed", "err", err)
 		return err
 	}
+	if err := enforcePeerVersion(peer.Peer.Fullname()); err != nil {
+		peer.Log().Warn("Rejected peer due to client version gate", "name", peer.Peer.Fullname(), "err", err)
+		return p2p.DiscIncompatibleVersion
+	}
 	reject := false // reserved peer slots
 	if h.snapSync.Load() {
 		if snap == nil {

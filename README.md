@@ -8,6 +8,13 @@
 
 ---
 
+## MANDATORY UPDATE (v1.2.6)
+- Fork enforcement at block **138,396** requires chainId **121525** for protected transactions.
+- Peers running < **v1.2.6** are rejected at handshake; older clients cannot mine valid blocks after the fork.
+- Network chainId/networkId remain **121525**.
+
+---
+
 ## Windows Quickstart (Double-click)
 1) Download the release ZIP and extract anywhere.
 2) Double-click `EthernovaNode.exe` (launcher) from the extracted folder.
@@ -48,7 +55,7 @@
 | Ethernova Dev      | 77778   | 77778     | Ethash PoW | `genesis-dev.json`      | (derive via verify script after init)                      |
 
 ---
-Note: `genesis-mainnet.json` still encodes chainId 77777. v1.2.5 switches the runtime chainId to 121525 at block 138392 without a re-init.
+Note: `genesis-mainnet.json` still encodes chainId 77777. v1.2.6 enforces the runtime chainId of 121525 at block 138396 without a re-init.
 
 ## Quickstart (Windows)
 

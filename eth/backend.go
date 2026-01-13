@@ -56,6 +56,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/dnsdisc"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/params/ethernova"
 	"github.com/ethereum/go-ethereum/params/types/coregeth"
 	"github.com/ethereum/go-ethereum/params/types/ctypes"
 	"github.com/ethereum/go-ethereum/params/types/goethereum"
@@ -174,9 +175,22 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if err != nil {
 		return nil, err
 	}
+	chainID := chainConfig.GetChainID()
+	isEthernova := ethernova.IsEthernovaChainID(chainID)
+	chainIDMigrated := false
+	if isEthernova && (chainID == nil || chainID.Cmp(ethernova.NewChainIDBig) != 0) {
+		if err := chainConfig.SetChainID(new(big.Int).Set(ethernova.NewChainIDBig)); err != nil {
+			return nil, err
+		}
+		chainID = chainConfig.GetChainID()
+		chainIDMigrated = true
+	}
 	networkID := config.NetworkId
 	if networkID == 0 {
-		networkID = chainConfig.GetChainID().Uint64()
+		if chainID == nil {
+			return nil, errors.New("missing chain ID for network configuration")
+		}
+		networkID = chainID.Uint64()
 	}
 	eth := &Ethereum{
 		config:            config,
@@ -240,6 +254,25 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, config.Genesis, &overrides, eth.engine, vmConfig, eth.shouldPreserve, &config.TransactionHistory)
 	if err != nil {
 		return nil, err
+	}
+	genesis := eth.blockchain.Genesis()
+	genesisHash := common.Hash{}
+	if genesis != nil {
+		genesisHash = genesis.Hash()
+	}
+	log.Info("Chain identity", "chain_id", chainID, "network_id", networkID, "genesis", genesisHash)
+	if isEthernova {
+		if chainID == nil || chainID.Cmp(ethernova.NewChainIDBig) != 0 {
+			return nil, fmt.Errorf("ethernova chainId mismatch: have %v want %v", chainID, ethernova.NewChainIDBig)
+		}
+		if networkID != ethernova.NewChainID {
+			return nil, fmt.Errorf("ethernova networkId mismatch: have %d want %d", networkID, ethernova.NewChainID)
+		}
+		if chainIDMigrated && genesisHash != (common.Hash{}) {
+			rawdb.WriteChainConfig(chainDb, genesisHash, chainConfig)
+			log.Info("Updated stored chain config", "chain_id", chainID, "genesis", genesisHash)
+		}
+		log.Info("Ethernova fork enforcement", "block", ethernova.SplitFixBlock)
 	}
 	eth.bloomIndexer.Start(eth.blockchain)
 	// Handle artificial finality config override cases.

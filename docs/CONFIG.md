@@ -35,7 +35,7 @@
 
 ## Genesis files
 - `genesis-dev.json`: difficulty=0x1, forks at block 0, baseFeeVault set, chainId/networkId 77778 (dev/testnet).
-- `genesis-mainnet.json`: same forks, higher difficulty (0x400000), baseFeeVault set, chainId/networkId 77777 (genesis). Runtime chainId/networkId switches to 121525 at block 138392.
+- `genesis-mainnet.json`: same forks, higher difficulty (0x400000), baseFeeVault set, chainId/networkId 77777 (genesis). Runtime chainId/networkId switches to 121525 at block 138396.
 - Block reward schedule (both): 10 -> 5 -> 2.5 -> 1.25 -> floor 1 NOVA, halving every ~2,102,400 blocks (~1 year at ~15s/block).
 
 ## Security

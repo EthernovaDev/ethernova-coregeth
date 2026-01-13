@@ -30,7 +30,7 @@ func TestEthernovaChainIDSwitch(t *testing.T) {
 		t.Fatalf("sign new chainId tx: %v", err)
 	}
 
-	preBlock := new(big.Int).Sub(ethernova.ChainIDSwitchBlockBig, big.NewInt(1))
+	preBlock := new(big.Int).Sub(ethernova.SplitFixBlockBig, big.NewInt(1))
 	preSigner := MakeSigner(cfg, preBlock, 0)
 	if from, err := Sender(preSigner, oldSigned); err != nil || from != addr {
 		t.Fatalf("pre-switch old chainId: from=%s err=%v", from, err)
@@ -39,7 +39,7 @@ func TestEthernovaChainIDSwitch(t *testing.T) {
 		t.Fatalf("pre-switch new chainId: from=%s err=%v", from, err)
 	}
 
-	postSigner := MakeSigner(cfg, new(big.Int).Set(ethernova.ChainIDSwitchBlockBig), 0)
+	postSigner := MakeSigner(cfg, new(big.Int).Set(ethernova.SplitFixBlockBig), 0)
 	if _, err := Sender(postSigner, oldSigned); !errors.Is(err, ErrInvalidChainId) {
 		t.Fatalf("post-switch old chainId: expected ErrInvalidChainId, got %v", err)
 	}

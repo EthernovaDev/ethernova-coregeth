@@ -1,3 +1,20 @@
+# Ethernova v1.2.6 (MANDATORY)
+
+MANDATORY UPDATE: v1.2.6 enforces the chainId split fix at block **138,396** and disconnects peers running older binaries.
+
+- Fork enforcement block: **138,396** (>= 138,396).
+- chainId/networkId: **121525** (0x1dab5).
+- Older clients are rejected at P2P handshake and cannot mine valid blocks after the fork.
+
+Upgrade steps:
+- Windows: use `dist/update-windows.ps1` to stop service, back up the old binary, replace it, and restart.
+- Linux: use `dist/update-linux.sh` to stop systemd, back up the old binary, replace it, daemon-reload if needed, and restart.
+
+Verification commands:
+- `eth_chainId` should return `0x1dab5`.
+- `net_version` should return `121525`.
+- `eth_getBlockByNumber(0).hash` should return `0xc67bd6160c1439360ab14abf7414e8f07186f3bed095121df3f3b66fdc6c2183`.
+
 # Ethernova v1.2.5
 
 - Hardfork at block 138392 switches chainId to 121525 (0x1dab5).
