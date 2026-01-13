@@ -1,6 +1,6 @@
 # README_QUICKSTART.md
 
-## Ethernova v1.2.5 Quickstart (Windows + Linux)
+## Ethernova v1.2.6 Quickstart (Windows + Linux)
 
 This bundle is plug-and-play. You can run a devnet test or start a mainnet node without manual setup.
 
@@ -54,8 +54,8 @@ ethernova --datadir <your-datadir> init genesis-upgrade-70000.json
 Do NOT replace the genesis file in your datadir. The init command updates the stored chain config in-place and preserves the genesis hash.
 
 **One-click update (recommended)**
-- Windows: `update-1.2.5.bat` (or `update.bat`)
-- Linux: `./update-1.2.5.sh` (or `./update.sh`)
+- Windows: `dist/update-windows.ps1`
+- Linux: `dist/update-linux.sh`
 
 ---
 
@@ -80,7 +80,7 @@ You can edit the scripts to change datadir or ports.
 
 Note: run-mainnet-node scripts apply `genesis-upgrade-70000.json` automatically if present (idempotent).
 
-## ChainId switch (block 138392)
+## ChainId enforcement (block 138396)
 - No genesis re-init required.
-- Upgrade before block 138392 so txs signed with chainId 121525 are accepted.
+- Upgrade before block 138396 so txs signed with chainId 121525 are accepted.
 - Scripts default to `--networkid 121525`; RPC returns `eth_chainId = 0x1dab5`.
