@@ -141,18 +141,6 @@ if (-not (Test-Path $ChainDataDir)) {
     & $Ethernova --datadir $DataDir init $GenesisMainnet | Out-Null
 }
 
-$GenesisUpgrade = Resolve-FirstPath @(
-    (Join-Path $RepoRoot "genesis\\genesis-upgrade-70000.json"),
-    (Join-Path $RepoRoot "genesis-upgrade-70000.json"),
-    (Join-Path $RepoRoot "genesis\\genesis-upgrade-60000.json"),
-    (Join-Path $RepoRoot "genesis-upgrade-60000.json")
-)
-if ($GenesisUpgrade) {
-    Write-Host ("Applying upgrade config: {0}" -f $GenesisUpgrade)
-    Write-Command -Exe $Ethernova -CmdArgs @("--datadir", $DataDir, "init", $GenesisUpgrade)
-    & $Ethernova --datadir $DataDir init $GenesisUpgrade | Out-Null
-}
-
 $ConfigPath = ""
 $StaticNodesSrc = Join-Path $RepoRoot "network\static-nodes.json"
 $DeprecatedStatic = Join-Path $DataDir "geth\\static-nodes.json"

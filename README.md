@@ -8,9 +8,9 @@
 
 ---
 
-## MANDATORY UPDATE (v1.2.6)
+## MANDATORY UPDATE (v1.2.7)
 - Fork enforcement at block **138,396** requires chainId **121525** for protected transactions.
-- Peers running < **v1.2.6** are rejected at handshake; older clients cannot mine valid blocks after the fork.
+- Peers running < **v1.2.7** are rejected at handshake; older clients cannot mine valid blocks after the fork.
 - Network chainId/networkId remain **121525**.
 
 ---
@@ -51,11 +51,11 @@
 
 | Network            | chainId | networkId | Consensus  | Genesis file            | Block 0 hash                                                |
 |--------------------|--------:|----------:|------------|-------------------------|------------------------------------------------------------|
-| Ethernova Mainnet  | 121525  | 121525    | Ethash PoW | `genesis-mainnet.json`  | `0xc67bd6160c1439360ab14abf7414e8f07186f3bed095121df3f3b66fdc6c2183` |
+| Ethernova Mainnet  | 121525  | 121525    | Ethash PoW | `genesis-mainnet.json`  | `0xc3812eb81498965a3f9ff3e73d2f423934e6d440578d4f4fbb6623cc61c453d9` |
 | Ethernova Dev      | 77778   | 77778     | Ethash PoW | `genesis-dev.json`      | (derive via verify script after init)                      |
 
 ---
-Note: `genesis-mainnet.json` still encodes chainId 77777. v1.2.6 enforces the runtime chainId of 121525 at block 138396 without a re-init.
+Note: `genesis-mainnet.json` encodes chainId 121525. v1.2.7 still enforces the runtime chainId of 121525 at block 138396 without a re-init.
 
 ## Quickstart (Windows)
 
@@ -119,7 +119,7 @@ Expected:
 
 ## Bootnodes
 Mainnet bootnodes (enode): add stable entries in `networks/mainnet/bootnodes.txt` and `static-nodes.json`.
-> Provide at least 2–5 stable bootnodes before launch.
+> Provide at least 2-5 stable bootnodes before launch.
 
 ---
 

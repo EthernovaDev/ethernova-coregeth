@@ -52,8 +52,8 @@ print(int(g["config"]["chainId"]))
 PY
 )"
 
-if [[ "$MODE" == "mainnet" && "$chain_id" != "77777" ]]; then
-  echo "ERROR: mainnet mode expects chainId 77777, got $chain_id (wrong genesis?)"
+if [[ "$MODE" == "mainnet" && "$chain_id" != "121525" ]]; then
+  echo "ERROR: mainnet mode expects chainId 121525, got $chain_id (wrong genesis?)"
   exit 1
 fi
 
@@ -85,4 +85,3 @@ echo "Mode:    $MODE"
 echo "chainId: $chain_id"
 echo "Datadir: $DATADIR"
 echo "Next:    $SCRIPT_DIR/ethernova-run.sh $MODE"
-

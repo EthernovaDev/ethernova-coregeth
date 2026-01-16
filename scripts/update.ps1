@@ -1,5 +1,5 @@
 param(
-    [string]$ReleaseVersion = "v1.2.5",
+    [string]$ReleaseVersion = "v1.2.7",
     [string]$GitHubRepo = "",
     [string]$BaseUrl = ""
 )
@@ -137,7 +137,7 @@ Write-Info "Updated bin\\ethernova.exe"
 
 $genesisDir = Join-Path $Root "genesis"
 if (-not (Test-Path $genesisDir)) { New-Item -ItemType Directory -Force -Path $genesisDir | Out-Null }
-foreach ($name in @("genesis-mainnet.json", "genesis-upgrade-60000.json", "genesis-upgrade-70000.json")) {
+foreach ($name in @("genesis-mainnet.json")) {
     $src = Get-ChildItem -Path $TempDir -Recurse -Filter $name | Select-Object -First 1
     if ($src) {
         Copy-Item $src.FullName (Join-Path $genesisDir $name) -Force
@@ -155,7 +155,7 @@ if ($srcScriptsDir) {
     Write-Info "Updated scripts\\"
 }
 
-foreach ($name in @("run-node.bat", "update.bat", "update-1.2.5.bat", "update.ps1", "README-WINDOWS.txt")) {
+foreach ($name in @("run-node.bat", "update.bat", "update-1.2.7.bat", "update.ps1", "README-WINDOWS.txt")) {
     $src = Get-ChildItem -Path $TempDir -Recurse -Filter $name | Select-Object -First 1
     if ($src) {
         Copy-Item $src.FullName (Join-Path $Root $name) -Force

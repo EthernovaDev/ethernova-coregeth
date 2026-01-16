@@ -26,8 +26,8 @@ $genesisJson = Get-Content $GenesisPath -Raw | ConvertFrom-Json
 $chainId = [uint64]$genesisJson.config.chainId
 $networkId = if ($genesisJson.config.networkId) { [uint64]$genesisJson.config.networkId } else { $chainId }
 
-if ($Mode -eq "mainnet" -and $chainId -ne 77777) {
-    throw "Mode=mainnet requires chainId 77777, got $chainId. Use the correct genesis file."
+if ($Mode -eq "mainnet" -and $chainId -ne 121525) {
+    throw "Mode=mainnet requires chainId 121525, got $chainId. Use the correct genesis file."
 }
 if ($Mode -eq "dev" -and $chainId -ne 77778) {
     throw "Mode=dev/test requires chainId 77778 (or non-mainnet), got $chainId. Avoid mixing genesis files."

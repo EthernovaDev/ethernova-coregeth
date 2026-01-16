@@ -14,13 +14,13 @@ func TestParseNodeVersion(t *testing.T) {
 		wantOK bool
 	}{
 		{
-			name:   "CoreGeth/v1.2.6/windows-amd64/go1.20",
-			want:   semver{major: 1, minor: 2, patch: 6},
+			name:   "CoreGeth/v1.2.7/windows-amd64/go1.20",
+			want:   semver{major: 1, minor: 2, patch: 7},
 			wantOK: true,
 		},
 		{
-			name:   "CoreGeth/v1.2.6-abcdef/windows-amd64/go1.20",
-			want:   semver{major: 1, minor: 2, patch: 6},
+			name:   "CoreGeth/v1.2.7-abcdef/windows-amd64/go1.20",
+			want:   semver{major: 1, minor: 2, patch: 7},
 			wantOK: true,
 		},
 		{
@@ -68,7 +68,7 @@ func TestEnforcePeerVersion(t *testing.T) {
 }
 
 func TestVerifyPeerVersionGate(t *testing.T) {
-	oldName := "CoreGeth/v1.2.5/windows-amd64/go1.20"
+	oldName := "CoreGeth/v1.2.6/windows-amd64/go1.20"
 	if err := enforcePeerVersion(oldName); err == nil {
 		t.Fatalf("expected old version to be rejected")
 	} else {
@@ -78,7 +78,7 @@ func TestVerifyPeerVersionGate(t *testing.T) {
 	min := minPeerVersion()
 	newName := fmt.Sprintf("%s/v%d.%d.%d/windows-amd64/go1.20", params.VersionName, min.major, min.minor, min.patch)
 	if err := enforcePeerVersion(newName); err != nil {
-		t.Fatalf("expected v1.2.6+ to be accepted, got %v", err)
+		t.Fatalf("expected v1.2.7+ to be accepted, got %v", err)
 	} else {
 		t.Logf("VERIFY_P2P_GATE: name=%q accepted", newName)
 	}

@@ -253,6 +253,9 @@ func init() {
 		makedagCommand,
 		versionCommand,
 		versionCheckCommand,
+		// See ethernova_cmds.go:
+		sanitycheckCommand,
+		printGenesisCommand,
 		licenseCommand,
 		// See config.go
 		dumpConfigCommand,
@@ -282,6 +285,9 @@ func init() {
 	app.Before = func(ctx *cli.Context) error {
 		maxprocs.Set() // Automatically set GOMAXPROCS to match Linux container CPU quota.
 		flags.MigrateGlobalFlags(ctx)
+		if _, err := applyEthernovaPathDefaults(ctx); err != nil {
+			return err
+		}
 		if err := debug.Setup(ctx); err != nil {
 			return err
 		}
@@ -398,6 +404,18 @@ func geth(ctx *cli.Context) error {
 	if args := ctx.Args().Slice(); len(args) > 0 {
 		return fmt.Errorf("invalid command: %q", args[0])
 	}
+
+	info, err := loadEthernovaGenesis(ctx)
+	if err != nil {
+		return err
+	}
+	printEthernovaStartup(info)
+	hash, err := ensureEthernovaGenesis(ctx, info)
+	if err != nil {
+		utils.Fatalf("%v", err)
+	}
+	log.Info("genesis verified OK: " + hash.Hex())
+	log.Info(fmt.Sprintf("chain_id=%d network_id=%d", info.ChainID, info.NetworkID))
 
 	prepare(ctx)
 	stack, backend := makeFullNode(ctx)

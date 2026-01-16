@@ -28,8 +28,8 @@ Write-Host "== P2P version gate verification =="
 $output = & $go test ./eth -run TestVerifyPeerVersionGate -v 2>&1
 $output | ForEach-Object { Write-Host $_ }
 
-$rejectLine = $output | Select-String -SimpleMatch 'VERIFY_P2P_GATE: name="CoreGeth/v1.2.5'
-$acceptLine = $output | Select-String -SimpleMatch 'VERIFY_P2P_GATE: name="CoreGeth/v1.2.6'
+$rejectLine = $output | Select-String -SimpleMatch 'VERIFY_P2P_GATE: name="CoreGeth/v1.2.6'
+$acceptLine = $output | Select-String -SimpleMatch 'VERIFY_P2P_GATE: name="CoreGeth/v1.2.7'
 $rejectOk = $rejectLine -and ($rejectLine -match "rejected")
 $acceptOk = $acceptLine -and ($acceptLine -match "accepted")
 

@@ -62,21 +62,6 @@ if [[ ! -d "$DATA_DIR/geth/chaindata" ]]; then
   "$ETHERNOVA" --datadir "$DATA_DIR" init "$GENESIS" >/dev/null
 fi
 
-UPGRADE_GENESIS="$ROOT_DIR/genesis/genesis-upgrade-70000.json"
-if [[ ! -f "$UPGRADE_GENESIS" ]]; then
-  UPGRADE_GENESIS="$ROOT_DIR/genesis-upgrade-70000.json"
-fi
-if [[ ! -f "$UPGRADE_GENESIS" ]]; then
-  UPGRADE_GENESIS="$ROOT_DIR/genesis/genesis-upgrade-60000.json"
-fi
-if [[ ! -f "$UPGRADE_GENESIS" ]]; then
-  UPGRADE_GENESIS="$ROOT_DIR/genesis-upgrade-60000.json"
-fi
-if [[ -f "$UPGRADE_GENESIS" ]]; then
-  echo "Applying upgrade config: $UPGRADE_GENESIS"
-  "$ETHERNOVA" --datadir "$DATA_DIR" init "$UPGRADE_GENESIS" >/dev/null
-fi
-
 CONFIG_PATH=""
 STATIC_NODES_SRC="$ROOT_DIR/network/static-nodes.json"
 DEPRECATED_STATIC="$DATA_DIR/geth/static-nodes.json"

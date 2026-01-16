@@ -1,11 +1,9 @@
-Ethernova v1.2.6 - Linux Bundle
+Ethernova v1.2.7 - Linux Bundle
 
 Quick start
 1) Extract the tarball:
-   tar -xzf ethernova-linux-amd64-v1.2.6.tar.gz
-2) (One-time) Update mainnet config:
-   ./scripts/apply-upgrade-mainnet.sh
-3) Start the node:
+   tar -xzf ethernova-linux-amd64-v1.2.7.tar.gz
+2) Start the node:
    ./scripts/run-mainnet-node.sh
 
 Defaults
@@ -15,7 +13,7 @@ Defaults
 - Logs: node.log
 
 Update (no data wipe)
-- ./update-linux.sh
+- ./update.sh or ./update-1.2.7.sh
 - This replaces the ethernova binary, scripts, and upgrade genesis files only.
 
 Systemd (optional)
@@ -24,6 +22,5 @@ Systemd (optional)
 
 Important
 - Upgrade BEFORE block 138396 (chainId enforcement).
-- If not done yet, run ./scripts/apply-upgrade-mainnet.sh (fork 70000 config update).
 - Do NOT replace the genesis file inside your datadir.
 - Bootnodes can be set in network/bootnodes.txt

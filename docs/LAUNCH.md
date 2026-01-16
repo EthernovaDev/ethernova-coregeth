@@ -3,7 +3,7 @@
 Windows-only instructions to stand up and operate Ethernova mainnet nodes safely.
 
 ## Modes and chain IDs
-- Mainnet: chainId **121525** / networkId **121525** (runtime, v1.2.6+). Genesis chainId remains 77777 in `genesis-mainnet.json`.
+- Mainnet: chainId **121525** / networkId **121525** (genesis + runtime).
 - Dev/Testnet: chainId/networkId **77778** (`genesis-dev.json`)
 - Scripts validate the chainId to avoid accidental cross-use.
 
@@ -26,9 +26,9 @@ Outputs `bin\ethernova.exe`. (If you use PowerShell 7, `pwsh` also works.)
 ## Mainnet Genesis Fingerprint
 | Field              | Value                                                               |
 |--------------------|---------------------------------------------------------------------|
-| ChainId/NetworkId (genesis) | 77777                                                         |
+| ChainId/NetworkId (genesis) | 121525                                                        |
 | Consensus          | Ethash                                                              |
-| Genesis Block Hash | 0xc67bd6160c1439360ab14abf7414e8f07186f3bed095121df3f3b66fdc6c2183  |
+| Genesis Block Hash | 0xc3812eb81498965a3f9ff3e73d2f423934e6d440578d4f4fbb6623cc61c453d9  |
 | BaseFeeVault       | 0x3a38560b66205bb6a31decbcb245450b2f15d4fd                          |
 | GasLimit           | 0x1c9c380                                                           |
 | Difficulty         | 0x400000                                                            |
@@ -96,7 +96,7 @@ Expected: both nodes report `net.peerCount > 0`.
 4) Verify node before attaching the pool:
    - `powershell -ExecutionPolicy Bypass -File scripts\test-rpc.ps1 -Endpoint http://127.0.0.1:8545`
    - `powershell -ExecutionPolicy Bypass -File scripts\verify-mainnet.ps1 -Endpoint http://127.0.0.1:8545`
-- Expected: chainId 0x1dab5, genesis hash `0xc67bd6...6c2183`, `eth_getWork` returns values when mining is on.
+- Expected: chainId 0x1dab5, genesis hash `0xc3812e...c453d9`, `eth_getWork` returns values when mining is on.
 
 ## Security defaults (mainnet)
 - RPC binds to `127.0.0.1` only.

@@ -20,8 +20,8 @@ printf '%s\n' "== P2P version gate verification =="
 output="$("$go_bin" test ./eth -run TestVerifyPeerVersionGate -v 2>&1)"
 printf '%s\n' "$output"
 
-reject_line="$(printf '%s\n' "$output" | grep -F 'VERIFY_P2P_GATE: name="CoreGeth/v1.2.5' || true)"
-accept_line="$(printf '%s\n' "$output" | grep -F 'VERIFY_P2P_GATE: name="CoreGeth/v1.2.6' || true)"
+reject_line="$(printf '%s\n' "$output" | grep -F 'VERIFY_P2P_GATE: name="CoreGeth/v1.2.6' || true)"
+accept_line="$(printf '%s\n' "$output" | grep -F 'VERIFY_P2P_GATE: name="CoreGeth/v1.2.7' || true)"
 
 if [[ -n "$reject_line" ]] && printf '%s\n' "$reject_line" | grep -Fq 'rejected' \
   && [[ -n "$accept_line" ]] && printf '%s\n' "$accept_line" | grep -Fq 'accepted'; then

@@ -3,7 +3,7 @@ Param(
 )
 
 $ErrorActionPreference = "Stop"
-$ExpectedGenesisHash = "0xc67bd6160c1439360ab14abf7414e8f07186f3bed095121df3f3b66fdc6c2183"
+$ExpectedGenesisHash = "0xc3812eb81498965a3f9ff3e73d2f423934e6d440578d4f4fbb6623cc61c453d9"
 
 function Call-Rpc([string]$method, [object[]]$params=@()) {
     $payload = @{

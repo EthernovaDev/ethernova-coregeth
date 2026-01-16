@@ -8,7 +8,7 @@
 | Entity | Version |
 | --- | --- |
 | Source | <code>1.12.14-unstable/generated-at:2023-09-04T08:02:34-06:00</code> |
-| OpenRPC | <code>1.2.6</code> |
+| OpenRPC | <code>1.2.7</code> |
 
 ---
 

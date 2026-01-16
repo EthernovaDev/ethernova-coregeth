@@ -159,6 +159,9 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 	}
 
 	utils.SetEthConfig(ctx, stack, &cfg.Eth)
+	if _, err := applyEthernovaGenesisConfig(ctx, &cfg.Eth); err != nil {
+		utils.Fatalf("failed to apply ethernova genesis: %v", err)
+	}
 	if ctx.IsSet(utils.EthStatsURLFlag.Name) {
 		cfg.Ethstats.URL = ctx.String(utils.EthStatsURLFlag.Name)
 	}

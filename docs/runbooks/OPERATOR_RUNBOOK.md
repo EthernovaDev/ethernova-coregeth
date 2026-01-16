@@ -1,10 +1,10 @@
 # OPERATOR_RUNBOOK.md
 
-## Scheduled Hard Fork Upgrade at Blocks 60000, 70000, and 138392
+## Scheduled Hard Fork Upgrade at Blocks 60000, 70000, and 138396
 
-This runbook describes how to safely upgrade your node to activate new EVM features at blocks 60000 and 70000 and the chainId switch at block 138392 without resetting chain history.
+This runbook describes how to safely upgrade your node to activate new EVM features at blocks 60000 and 70000 and the chainId enforcement at block 138396 without resetting chain history.
 
-Ethernova v1.2.5 switches chainId from 77777 to 121525 at block 138392. This is a runtime change; no genesis re-init is required.
+Ethernova v1.2.7 enforces chainId 121525 at block 138396. Ensure your genesis hash matches the expected mainnet genesis; if not, wipe the datadir and re-init with the correct genesis.
 
 ---
 
@@ -52,39 +52,29 @@ cp -a /path/to/datadir /path/to/backup/datadir
 
 ---
 
-## 3. Apply the Genesis Config Upgrade
+## 3. Verify Genesis & Version
 
 **Windows:**
 ```
-ethernova.exe --datadir <your-datadir> init genesis-upgrade-70000.json
+ethernova.exe print-genesis
+ethernova.exe sanitycheck --datadir <your-datadir>
 ```
 
 **Linux:**
 ```
-ethernova --datadir <your-datadir> init genesis-upgrade-70000.json
+ethernova print-genesis
+ethernova sanitycheck --datadir <your-datadir>
 ```
 
-- Do NOT replace the genesis file in your datadir. The `init` command updates the stored chain config in-place and preserves the existing genesis hash.
-- This updates the stored chain config in-place without wiping chain data as long as the genesis hash is unchanged.
-- The tool uses `core.SetupGenesisBlockWithOverride` to safely update the config.
- - The run-mainnet-node scripts also apply the latest upgrade config if present (idempotent).
+- If you see **WRONG GENESIS**, delete the datadir and re-init with the correct `genesis-mainnet.json` (or rely on the embedded genesis).
+- The `sanitycheck` command validates the genesis hash and chainId without starting networking.
 
 ---
 
-## Mainnet config update (no wipe)
-
-To update the live mainnet config for the Fork70000 schedule without wiping chain data, use:
-```
-ethernova --datadir <your-datadir> init genesis-upgrade-70000.json
-```
-This updates the chain config stored in the DB while preserving the genesis hash and full history.
-
----
-
-## ChainId switch (block 138392)
+## ChainId enforcement (block 138396)
 
 - No genesis re-init required.
-- Upgrade before block 138392 so txs signed with chainId 121525 are accepted.
+- Upgrade before block 138396 so txs signed with chainId 121525 are accepted.
 - Ensure your start scripts/services use `--networkid 121525` to avoid old peers.
 
 ---
@@ -105,7 +95,7 @@ ethernova --datadir <your-datadir> --networkid 121525 --mine ...
 
 ## 5. Verify the Upgrade
 
-- Check logs for config update confirmation.
+- Check logs for genesis verification confirmation.
 - Use the `cmd/evmcheck` tool to verify CREATE2, CHAINID, and Shanghai/Cancun opcode activation.
 
 ---

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-RELEASE_VERSION="${RELEASE_VERSION:-v1.2.5}"
+RELEASE_VERSION="${RELEASE_VERSION:-v1.2.7}"
 RELEASE_URL_BASE="${RELEASE_URL_BASE:-}"
 GITHUB_REPO="${GITHUB_REPO:-}"
 
@@ -103,7 +103,7 @@ echo "Updated bin/ethernova"
 
 genesis_dir="$ROOT_DIR/genesis"
 mkdir -p "$genesis_dir"
-for name in genesis-mainnet.json genesis-upgrade-60000.json genesis-upgrade-70000.json; do
+for name in genesis-mainnet.json; do
   src="$(find "$TEMP_DIR" -type f -name "$name" | head -n 1 || true)"
   if [[ -n "$src" ]]; then
     cp "$src" "$genesis_dir/$name"
@@ -120,7 +120,7 @@ if [[ -n "$src_scripts_dir" ]]; then
   echo "Updated scripts/"
 fi
 
-for name in update.sh update-1.2.5.sh install.sh README-LINUX.txt; do
+for name in update.sh update-1.2.7.sh install.sh README-LINUX.txt; do
   src="$(find "$TEMP_DIR" -type f -name "$name" | head -n 1 || true)"
   if [[ -n "$src" ]]; then
     cp "$src" "$ROOT_DIR/$name"
