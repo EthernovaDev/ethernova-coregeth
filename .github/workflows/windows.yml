@@ -1,0 +1,63 @@
+name: Windows Build and Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup MSYS2 with mingw64
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-pkgconf
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      - name: Build ethernova
+        shell: pwsh
+        env:
+          PATH: C:\msys64\mingw64\bin;${{ env.PATH }}
+          CC: C:\msys64\mingw64\bin\gcc.exe
+          CGO_ENABLED: "1"
+          CGO_CFLAGS: -std=gnu99
+        run: pwsh -File scripts/build-windows.ps1
+      - name: Run unit tests (fast subset)
+        shell: pwsh
+        env:
+          PATH: C:\msys64\mingw64\bin;${{ env.PATH }}
+          CC: C:\msys64\mingw64\bin\gcc.exe
+          CGO_ENABLED: "1"
+          CGO_CFLAGS: -std=gnu99
+        run: |
+          $pkgs = go list ./... | Where-Object {
+            ($_ -notmatch "github.com/ethereum/go-ethereum/cmd/geth") -and
+            ($_ -notmatch "github.com/ethereum/go-ethereum/consensus/ethash") -and
+            ($_ -notmatch "github.com/ethereum/go-ethereum/tests")
+          }
+          if (-not $pkgs) { throw "No packages selected for tests" }
+          go test @pkgs
+      - name: (Optional) Integration tests
+        if: ${{ false }}
+        shell: pwsh
+        env:
+          PATH: C:\msys64\mingw64\bin;${{ env.PATH }}
+          CC: C:\msys64\mingw64\bin\gcc.exe
+          CGO_ENABLED: "1"
+          CGO_CFLAGS: -std=gnu99
+        run: |
+          go test ./...
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ethernova-windows
+          path: bin/ethernova.exe
