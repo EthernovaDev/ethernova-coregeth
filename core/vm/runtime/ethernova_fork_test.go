@@ -70,11 +70,27 @@ func TestEthernovaEVMOpcodesPrePostFork(t *testing.T) {
 	}
 
 	chainIDCode := []byte{0x46, 0x00} // CHAINID, STOP
+	if _, _, err := Execute(chainIDCode, nil, preCfg); err == nil {
+		t.Fatal("expected CHAINID to be invalid before fork")
+	} else {
+		var invalid *vm.ErrInvalidOpCode
+		if !errors.As(err, &invalid) {
+			t.Fatalf("expected invalid opcode before fork, got %v", err)
+		}
+	}
 	if _, _, err := Execute(chainIDCode, nil, &Config{ChainConfig: cfg, BlockNumber: big.NewInt(int64(fork))}); err != nil {
 		t.Fatalf("expected CHAINID to succeed after fork, got %v", err)
 	}
 
 	selfBalanceCode := []byte{0x47, 0x00} // SELFBALANCE, STOP
+	if _, _, err := Execute(selfBalanceCode, nil, preCfg); err == nil {
+		t.Fatal("expected SELFBALANCE to be invalid before fork")
+	} else {
+		var invalid *vm.ErrInvalidOpCode
+		if !errors.As(err, &invalid) {
+			t.Fatalf("expected invalid opcode before fork, got %v", err)
+		}
+	}
 	if _, _, err := Execute(selfBalanceCode, nil, &Config{ChainConfig: cfg, BlockNumber: big.NewInt(int64(fork))}); err != nil {
 		t.Fatalf("expected SELFBALANCE to succeed after fork, got %v", err)
 	}
