@@ -18,6 +18,22 @@ missing opcodes required by modern Solidity bytecode:
 - Old clients will diverge at the fork and be rejected via ForkID mismatch.
 - **No genesis re-init is required.**
 
+## Enforcement block (chain-aware)
+
+The client derives the fork enforcement block from the active chain identity:
+
+- chainId **121525** + genesis **0xc3812e...c453d9** => enforcement **105000**
+- legacy chainId **77777** (or legacy genesis) => enforcement **138396**
+- unknown chains **do not** default to the legacy value
+
+Verify with:
+
+- Windows: `scripts/verify-enforcement-windows.ps1`
+- Linux: `scripts/verify-enforcement-linux.sh`
+
+These scripts also check for the startup log line:
+`Ethernova fork enforcement block=105,000`
+
 ## Mandatory Upgrade
 
 Upgrade **before block 105000**.

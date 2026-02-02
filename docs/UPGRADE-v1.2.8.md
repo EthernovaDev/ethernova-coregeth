@@ -50,6 +50,7 @@ Confirm:
 
 - `web3_clientVersion` shows `Ethernova/v1.2.8/...`
 - Fork schedule log shows `fork scheduled at 105000 (Constantinople)`
+- Enforcement log shows `Ethernova fork enforcement block=105,000`
 
 Run the verification script:
 
@@ -61,6 +62,18 @@ Run the verification script:
 **Linux:**
 ```
 ./scripts/verify-fork-linux.sh http://127.0.0.1:8545
+```
+
+Enforcement verification (checks chainId/genesis/log output):
+
+**Windows:**
+```
+.\scripts\verify-enforcement-windows.ps1
+```
+
+**Linux:**
+```
+./scripts/verify-enforcement-linux.sh
 ```
 
 Expected results:

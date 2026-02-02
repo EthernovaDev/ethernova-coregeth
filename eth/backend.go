@@ -262,6 +262,16 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	}
 	log.Info("Chain identity", "chain_id", chainID, "network_id", networkID, "genesis", genesisHash)
 	if isEthernova {
+		enforcement := ethernova.ForkEnforcementDecision(chainID, genesisHash)
+		enforcementBlock := ethernova.FormatBlockWithCommas(enforcement.Block)
+		log.Info(fmt.Sprintf("Ethernova fork enforcement block=%s", enforcementBlock),
+			"chain_id", chainID, "genesis", genesisHash, "reason", enforcement.Reason)
+		if enforcement.Warning != "" {
+			log.Warn("Ethernova fork enforcement warning", "warning", enforcement.Warning, "chain_id", chainID, "genesis", genesisHash)
+		}
+		log.Info(fmt.Sprintf("Ethernova EVM fork block=%s enforcement block=%s",
+			ethernova.FormatBlockWithCommas(ethernova.EVMCompatibilityForkBlock), enforcementBlock),
+			"chain_id", chainID, "genesis", genesisHash)
 		if chainID == nil || chainID.Cmp(ethernova.NewChainIDBig) != 0 {
 			return nil, fmt.Errorf("ethernova chainId mismatch: have %v want %v", chainID, ethernova.NewChainIDBig)
 		}
