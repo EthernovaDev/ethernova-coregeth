@@ -99,3 +99,5 @@ checksums-sha256.txt
 *.local.md
 *.secrets
 
+.tools/
+_tools/
