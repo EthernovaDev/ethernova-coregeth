@@ -96,6 +96,14 @@ Optional explicit init (only if you want to seed a datadir manually):
 ---
 Note: `genesis-mainnet.json` encodes chainId 121525. v1.2.9 keeps the EVM compatibility fork (Constantinople/Petersburg/Istanbul) at block 105000 and schedules EIP-658 (receipt status) at block 110500 without a re-init.
 
+Current mainnet fork schedule (chainId 121525):
+- Block 105000: Constantinople + Petersburg + Istanbul (EVM opcodes for SHL/CHAINID/SELFBALANCE)
+- Block 110500: EIP-658 receipt status
+
+Upgrade guidance:
+- `docs/UPGRADE-v1.2.9.md`
+- `docs/RELEASE-NOTES-v1.2.9.md`
+
 ## Mining / pool mode (optional)
 
 RPC should remain on localhost; run Miningcore on the same host or via SSH tunnel.
