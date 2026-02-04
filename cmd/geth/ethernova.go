@@ -311,8 +311,8 @@ func printEthernovaStartup(info *ethernovaGenesisInfo) {
 	fmt.Printf("genesis_hash_actual=%s\n", info.GenesisHash.Hex())
 	fmt.Printf("chain_id=%d network_id=%d\n", info.ChainID, info.NetworkID)
 	fmt.Printf("fork scheduled at %d (Constantinople)\n", ethernova.EVMCompatibilityForkBlock)
+	fmt.Printf("EIP-658 scheduled at %d (receipt status)\n", ethernova.EIP658ForkBlock)
 }
-
 func validateEthernovaGenesisInfo(info *ethernovaGenesisInfo) error {
 	if info.ChainID != ethernova.NewChainID {
 		return fmt.Errorf("chainId mismatch: have %d want %d", info.ChainID, ethernova.NewChainID)

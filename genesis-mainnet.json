@@ -425,6 +425,7 @@
     "constantinopleBlock": 105000,
     "petersburgBlock": 105000,
     "istanbulBlock": 105000,
+    "eip658FBlock": 110500,
     "eip1559FBlock": 0,
     "eip155Block": 0,
     "eip2565FBlock": 0,
@@ -444,3 +445,5 @@
   "nonce": "0x0",
   "timestamp": "0x0"
 }
+
+

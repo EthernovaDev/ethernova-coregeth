@@ -94,7 +94,7 @@ Optional explicit init (only if you want to seed a datadir manually):
 | Ethernova Dev      | 77778   | 77778     | Ethash PoW | `genesis-dev.json`      | (derive via verify script after init)                      |
 
 ---
-Note: `genesis-mainnet.json` encodes chainId 121525. v1.2.8 schedules the EVM compatibility fork (Constantinople/Petersburg/Istanbul) at block 105000 without a re-init.
+Note: `genesis-mainnet.json` encodes chainId 121525. v1.2.9 keeps the EVM compatibility fork (Constantinople/Petersburg/Istanbul) at block 105000 and schedules EIP-658 (receipt status) at block 110500 without a re-init.
 
 ## Mining / pool mode (optional)
 
