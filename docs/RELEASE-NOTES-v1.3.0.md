@@ -21,6 +21,11 @@ Modern tooling expects historical forks to be configured explicitly. This releas
 ## Peer compatibility
 ForkID now advertises **118200** as the next fork. Peers with older schedules are dropped during handshake (forkid mismatch).
 
+## Multiverse Safety
+- ForkID next = **118200**.
+- Incompatible peers are dropped during handshake (forkid mismatch logging enabled).
+- Nodes refuse to start if mega-fork fields are missing at/after **118200**.
+
 ## Assets
 - `ethernova-v1.3.0-linux-amd64`
 - `ethernova-v1.3.0-windows-amd64.exe`
