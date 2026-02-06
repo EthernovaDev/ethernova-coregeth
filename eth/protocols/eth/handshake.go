@@ -24,6 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/forkid"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p"
 )
@@ -105,6 +106,12 @@ func (p *Peer) readStatus(network uint64, status *StatusPacket, genesis common.H
 		return fmt.Errorf("%w: %x (!= %x)", errGenesisMismatch, status.Genesis, genesis)
 	}
 	if err := forkFilter(status.ForkID); err != nil {
+		log.Warn("Dropping peer due to forkid mismatch",
+			"peer", p.ID(),
+			"forkid_hash", fmt.Sprintf("0x%x", status.ForkID.Hash),
+			"forkid_next", status.ForkID.Next,
+			"err", err,
+		)
 		return fmt.Errorf("%w: %v", errForkIDRejected, err)
 	}
 	return nil

@@ -65,6 +65,20 @@ func TestEthernovaForkIDIncludesEIP658(t *testing.T) {
 		PetersburgBlock:     new(big.Int).SetUint64(ethernova.EVMCompatibilityForkBlock),
 		IstanbulBlock:       new(big.Int).SetUint64(ethernova.EVMCompatibilityForkBlock),
 		EIP658FBlock:        new(big.Int).SetUint64(ethernova.EIP658ForkBlock),
+		EIP2FBlock:          new(big.Int).SetUint64(ethernova.MegaForkBlock),
+		EIP7FBlock:          new(big.Int).SetUint64(ethernova.MegaForkBlock),
+		EIP150Block:         new(big.Int).SetUint64(ethernova.MegaForkBlock),
+		EIP160FBlock:        new(big.Int).SetUint64(ethernova.MegaForkBlock),
+		EIP161FBlock:        new(big.Int).SetUint64(ethernova.MegaForkBlock),
+		EIP170FBlock:        new(big.Int).SetUint64(ethernova.MegaForkBlock),
+		EIP100FBlock:        new(big.Int).SetUint64(ethernova.MegaForkBlock),
+		EIP140FBlock:        new(big.Int).SetUint64(ethernova.MegaForkBlock),
+		EIP198FBlock:        new(big.Int).SetUint64(ethernova.MegaForkBlock),
+		EIP211FBlock:        new(big.Int).SetUint64(ethernova.MegaForkBlock),
+		EIP212FBlock:        new(big.Int).SetUint64(ethernova.MegaForkBlock),
+		EIP213FBlock:        new(big.Int).SetUint64(ethernova.MegaForkBlock),
+		EIP214FBlock:        new(big.Int).SetUint64(ethernova.MegaForkBlock),
+		EIP1706FBlock:       new(big.Int).SetUint64(ethernova.MegaForkBlock),
 	}
 
 	idBase := NewID(baseCfg, genesisBlock, 0, 0)
@@ -79,5 +93,10 @@ func TestEthernovaForkIDIncludesEIP658(t *testing.T) {
 	idPostCompat := NewID(cfgWith658, genesisBlock, ethernova.EVMCompatibilityForkBlock, 0)
 	if idPostCompat.Next != ethernova.EIP658ForkBlock {
 		t.Fatalf("unexpected forkid next after 105000: have %d want %d", idPostCompat.Next, ethernova.EIP658ForkBlock)
+	}
+
+	idPost658 := NewID(cfgWith658, genesisBlock, ethernova.EIP658ForkBlock, 0)
+	if idPost658.Next != ethernova.MegaForkBlock {
+		t.Fatalf("unexpected forkid next after EIP-658: have %d want %d", idPost658.Next, ethernova.MegaForkBlock)
 	}
 }

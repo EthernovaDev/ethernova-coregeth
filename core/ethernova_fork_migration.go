@@ -65,7 +65,30 @@ func ethernovaPatchConfigIfNeeded(cfg ctypes.ChainConfigurator, head uint64) (bo
 	if updated658 {
 		log.Warn("Ethernova chain config upgraded in-place", "fork_block", eip658Block, "head", head, "feature", "eip658")
 	}
-	return updated || updated658, nil
+	updated = updated || updated658
+
+	megaBlock := ethernova.MegaForkBlock
+	missingFields, mismatched, err := ethernovaMegaForkStatus(cfg, megaBlock)
+	if err != nil {
+		return updated, err
+	}
+	if len(mismatched) > 0 {
+		return updated, fmt.Errorf("ethernova chain config has unexpected mega fork values (%s); expected %d", strings.Join(mismatched, ", "), megaBlock)
+	}
+	if len(missingFields) > 0 {
+		if head >= megaBlock {
+			return updated, fmt.Errorf("UPGRADE REQUIRED: ethernova chain config missing mega fork fields (%s); head=%d fork=%d. Refusing to start; upgrade before block %d", strings.Join(missingFields, ", "), head, megaBlock, megaBlock)
+		}
+		updatedMega, err := ethernovaApplyMegaFork(cfg, megaBlock)
+		if err != nil {
+			return updated, err
+		}
+		if updatedMega {
+			log.Warn("Ethernova chain config upgraded in-place", "fork_block", megaBlock, "head", head, "feature", "mega-fork")
+		}
+		updated = updated || updatedMega
+	}
+	return updated, nil
 }
 
 func ethernovaForkStatus(cfg ctypes.ChainConfigurator, forkBlock uint64) (missing bool, mismatched []string, err error) {
@@ -153,4 +176,64 @@ func ethernovaApplyEIP658(cfg ctypes.ChainConfigurator, forkBlock uint64) (bool,
 	}
 	cg.EIP658FBlock = new(big.Int).SetUint64(forkBlock)
 	return true, nil
+}
+
+func ethernovaMegaForkStatus(cfg ctypes.ChainConfigurator, forkBlock uint64) (missing []string, mismatched []string, err error) {
+	cg, ok := cfg.(*coregeth.CoreGethChainConfig)
+	if !ok {
+		return nil, nil, fmt.Errorf("unsupported chain config type for ethernova: %T", cfg)
+	}
+	checkBig := func(name string, val *big.Int) {
+		if val == nil {
+			missing = append(missing, name)
+			return
+		}
+		if val.Uint64() != forkBlock {
+			mismatched = append(mismatched, fmt.Sprintf("%s=%d", name, val.Uint64()))
+		}
+	}
+	checkBig("eip2FBlock", cg.EIP2FBlock)
+	checkBig("eip7FBlock", cg.EIP7FBlock)
+	checkBig("eip150Block", cg.EIP150Block)
+	checkBig("eip160FBlock", cg.EIP160FBlock)
+	checkBig("eip161FBlock", cg.EIP161FBlock)
+	checkBig("eip170FBlock", cg.EIP170FBlock)
+	checkBig("eip100FBlock", cg.EIP100FBlock)
+	checkBig("eip140FBlock", cg.EIP140FBlock)
+	checkBig("eip198FBlock", cg.EIP198FBlock)
+	checkBig("eip211FBlock", cg.EIP211FBlock)
+	checkBig("eip212FBlock", cg.EIP212FBlock)
+	checkBig("eip213FBlock", cg.EIP213FBlock)
+	checkBig("eip214FBlock", cg.EIP214FBlock)
+	checkBig("eip1706FBlock", cg.EIP1706FBlock)
+	return missing, mismatched, nil
+}
+
+func ethernovaApplyMegaFork(cfg ctypes.ChainConfigurator, forkBlock uint64) (bool, error) {
+	cg, ok := cfg.(*coregeth.CoreGethChainConfig)
+	if !ok {
+		return false, fmt.Errorf("unsupported chain config type for ethernova: %T", cfg)
+	}
+	updated := false
+	setIfNil := func(val **big.Int) {
+		if *val == nil {
+			*val = new(big.Int).SetUint64(forkBlock)
+			updated = true
+		}
+	}
+	setIfNil(&cg.EIP2FBlock)
+	setIfNil(&cg.EIP7FBlock)
+	setIfNil(&cg.EIP150Block)
+	setIfNil(&cg.EIP160FBlock)
+	setIfNil(&cg.EIP161FBlock)
+	setIfNil(&cg.EIP170FBlock)
+	setIfNil(&cg.EIP100FBlock)
+	setIfNil(&cg.EIP140FBlock)
+	setIfNil(&cg.EIP198FBlock)
+	setIfNil(&cg.EIP211FBlock)
+	setIfNil(&cg.EIP212FBlock)
+	setIfNil(&cg.EIP213FBlock)
+	setIfNil(&cg.EIP214FBlock)
+	setIfNil(&cg.EIP1706FBlock)
+	return updated, nil
 }
