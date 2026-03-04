@@ -41,7 +41,9 @@ type sigCache struct {
 func MakeSigner(config ctypes.ChainConfigurator, blockNumber *big.Int, blockTime uint64) Signer {
 	chainID := config.GetChainID()
 	if ethernova.IsEthernovaChainID(chainID) {
-		return makeSigner(config, blockNumber, blockTime, ethernova.NewChainIDBig)
+		primary := makeSigner(config, blockNumber, blockTime, ethernova.NewChainIDBig)
+		fallback := makeSigner(config, blockNumber, blockTime, new(big.Int).SetUint64(ethernova.LegacyChainID))
+		return newDualSigner(primary, fallback)
 	}
 	return makeSigner(config, blockNumber, blockTime, chainID)
 }
@@ -445,17 +447,6 @@ func (s EIP155Signer) Sender(tx *Transaction) (common.Address, error) {
 		return HomesteadSigner{}.Sender(tx)
 	}
 	if tx.ChainId().Cmp(s.chainId) != 0 {
-		// Accept legacy Ethernova transactions signed with the old chain ID (77777).
-		// Before the chain-ID migration (~block 138396), all EIP-155 transactions
-		// were signed with 77777.  We recover the sender using the original chain ID
-		// so that new nodes can sync the full history from block 0.
-		if ethernova.IsEthernovaChainID(s.chainId) && tx.ChainId().Uint64() == ethernova.LegacyChainID {
-			legacySigner := NewEIP155Signer(new(big.Int).SetUint64(ethernova.LegacyChainID))
-			V, R, S := tx.RawSignatureValues()
-			V = new(big.Int).Sub(V, legacySigner.chainIdMul)
-			V.Sub(V, big8)
-			return recoverPlain(legacySigner.Hash(tx), R, S, V, true)
-		}
 		return common.Address{}, fmt.Errorf("%w: have %d want %d", ErrInvalidChainId, tx.ChainId(), s.chainId)
 	}
 	V, R, S := tx.RawSignatureValues()
