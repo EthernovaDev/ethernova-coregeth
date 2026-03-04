@@ -38,3 +38,31 @@ func TestVerifyChainIDGate(t *testing.T) {
 		t.Fatalf("correct chainId: from=%s err=%v", from, err)
 	}
 }
+
+// TestLegacyChainIDAccepted verifies that transactions signed with the legacy
+// chain ID 77777 are accepted when the signer is configured for 121525.
+// This is required so that new nodes can sync historical blocks from block 0.
+func TestLegacyChainIDAccepted(t *testing.T) {
+	key, _ := crypto.GenerateKey()
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+
+	cfg := &coregeth.CoreGethChainConfig{
+		ChainID:     new(big.Int).Set(ethernova.NewChainIDBig),
+		EIP155Block: big.NewInt(0),
+	}
+
+	tx := NewTransaction(0, common.HexToAddress("0x1"), big.NewInt(1), 21000, big.NewInt(1), nil)
+	legacySigned, err := SignTx(tx, NewEIP155Signer(new(big.Int).SetUint64(ethernova.LegacyChainID)), key)
+	if err != nil {
+		t.Fatalf("sign legacy chainId tx: %v", err)
+	}
+
+	signer := MakeSigner(cfg, big.NewInt(0), 0)
+	from, err := Sender(signer, legacySigned)
+	if err != nil {
+		t.Fatalf("legacy chainId should be accepted, got error: %v", err)
+	}
+	if from != addr {
+		t.Fatalf("legacy chainId: sender mismatch got=%s want=%s", from, addr)
+	}
+}
