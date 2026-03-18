@@ -52,20 +52,19 @@ func ethernovaPatchConfigIfNeeded(cfg ctypes.ChainConfigurator, head uint64) (bo
 	if len(mismatched) > 0 {
 		return updated, fmt.Errorf("ethernova chain config has unexpected EIP-658 fork block values (%s); expected %d", strings.Join(mismatched, ", "), eip658Block)
 	}
-	if !missing {
-		return updated, nil
+	if missing {
+		if head >= eip658Block {
+			return updated, fmt.Errorf("UPGRADE REQUIRED: ethernova chain config missing EIP-658 fork block; head=%d fork=%d. Refusing to start; upgrade before block %d", head, eip658Block, eip658Block)
+		}
+		updated658, err := ethernovaApplyEIP658(cfg, eip658Block)
+		if err != nil {
+			return updated, err
+		}
+		if updated658 {
+			log.Warn("Ethernova chain config upgraded in-place", "fork_block", eip658Block, "head", head, "feature", "eip658")
+		}
+		updated = updated || updated658
 	}
-	if head >= eip658Block {
-		return updated, fmt.Errorf("UPGRADE REQUIRED: ethernova chain config missing EIP-658 fork block; head=%d fork=%d. Refusing to start; upgrade before block %d", head, eip658Block, eip658Block)
-	}
-	updated658, err := ethernovaApplyEIP658(cfg, eip658Block)
-	if err != nil {
-		return updated, err
-	}
-	if updated658 {
-		log.Warn("Ethernova chain config upgraded in-place", "fork_block", eip658Block, "head", head, "feature", "eip658")
-	}
-	updated = updated || updated658
 
 	megaBlock := ethernova.MegaForkBlock
 	missingFields, mismatched, err := ethernovaMegaForkStatus(cfg, megaBlock)
