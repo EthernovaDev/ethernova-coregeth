@@ -5,7 +5,11 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/metrics"
 )
+
+var dualSignerFallbackCounter = metrics.NewRegisteredCounter("ethernova/dualsigner/fallback", nil)
 
 type dualSigner struct {
 	primary  Signer
@@ -21,6 +25,8 @@ func (s dualSigner) Sender(tx *Transaction) (common.Address, error) {
 	if err == nil || !errors.Is(err, ErrInvalidChainId) {
 		return addr, err
 	}
+	dualSignerFallbackCounter.Inc(1)
+	log.Debug("DualSigner fallback to legacy chain ID", "tx", tx.Hash())
 	return s.fallback.Sender(tx)
 }
 

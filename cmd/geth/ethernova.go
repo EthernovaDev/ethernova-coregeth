@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
@@ -51,11 +52,22 @@ type ethernovaGenesisInfo struct {
 }
 
 type ethernovaLock struct {
-	Version             string `json:"version"`
-	ChainID             uint64 `json:"chainId"`
-	NetworkID           uint64 `json:"networkId"`
-	ExpectedGenesisHash string `json:"expectedGenesisHash"`
-	GenesisSHA256       string `json:"genesisSha256"`
+	Version             string          `json:"version"`
+	ChainID             uint64          `json:"chainId"`
+	NetworkID           uint64          `json:"networkId"`
+	ExpectedGenesisHash string          `json:"expectedGenesisHash"`
+	GenesisSHA256       string          `json:"genesisSha256"`
+	ForkStatus          *forkLockStatus `json:"forkStatus,omitempty"`
+}
+
+type forkLockStatus struct {
+	EVMCompatApplied bool   `json:"evmCompatApplied"`
+	EVMCompatBlock   uint64 `json:"evmCompatBlock"`
+	EIP658Applied    bool   `json:"eip658Applied"`
+	EIP658Block      uint64 `json:"eip658Block"`
+	MegaForkApplied  bool   `json:"megaForkApplied"`
+	MegaForkBlock    uint64 `json:"megaForkBlock"`
+	LastCheckedAt    string `json:"lastCheckedAt"`
 }
 
 var ethernovaCachedGenesis *ethernovaGenesisInfo
@@ -110,7 +122,7 @@ func applyEthernovaOneClickDefaults(ctx *cli.Context) (uint64, error) {
 	if len(os.Args) > 1 {
 		return 0, nil
 	}
-	apiList := "eth,net,web3,debug,txpool"
+	apiList := "eth,net,web3,debug,txpool,ethernova"
 
 	if !ctx.IsSet(utils.HTTPEnabledFlag.Name) {
 		if err := ctx.Set(utils.HTTPEnabledFlag.Name, "true"); err != nil {
@@ -304,15 +316,23 @@ func genesisPathUsed(info *ethernovaGenesisInfo) string {
 }
 
 func printEthernovaStartup(info *ethernovaGenesisInfo) {
-	fmt.Printf("cwd=%s\n", info.Paths.Cwd)
-	fmt.Printf("datadir=%s\n", info.Paths.DataDir)
-	fmt.Printf("genesis_path_used=%s\n", genesisPathUsed(info))
-	fmt.Printf("genesis_hash_expected=%s\n", info.ExpectedGenesisHash.Hex())
-	fmt.Printf("genesis_hash_actual=%s\n", info.GenesisHash.Hex())
-	fmt.Printf("chain_id=%d network_id=%d\n", info.ChainID, info.NetworkID)
-	fmt.Printf("fork scheduled at %d (Constantinople)\n", ethernova.EVMCompatibilityForkBlock)
-	fmt.Printf("EIP-658 scheduled at %d (receipt status)\n", ethernova.EIP658ForkBlock)
-	fmt.Printf("mega fork scheduled at %d (EVM-compat)\n", ethernova.MegaForkBlock)
+	fmt.Println("==========================================================")
+	fmt.Println("  ETHERNOVA NODE v" + params.Version)
+	fmt.Println("  PoW (Ethash) | Chain ID: 121525 | Network ID: 121525")
+	fmt.Println("==========================================================")
+	fmt.Println()
+	fmt.Printf("  Datadir:    %s\n", info.Paths.DataDir)
+	fmt.Printf("  Genesis:    %s\n", genesisPathUsed(info))
+	fmt.Printf("  Hash:       %s\n", info.GenesisHash.Hex())
+	fmt.Println()
+	fmt.Println("  Fork Schedule:")
+	fmt.Printf("    Constantinople/Petersburg/Istanbul .. block %s\n", ethernova.FormatBlockWithCommas(ethernova.EVMCompatibilityForkBlock))
+	fmt.Printf("    EIP-658 (Receipt Status) ........... block %s\n", ethernova.FormatBlockWithCommas(ethernova.EIP658ForkBlock))
+	fmt.Printf("    MegaFork (Historical EVM) .......... block %s\n", ethernova.FormatBlockWithCommas(ethernova.MegaForkBlock))
+	fmt.Printf("    Legacy Chain Enforcement ........... block %s\n", ethernova.FormatBlockWithCommas(ethernova.LegacyForkEnforcementBlock))
+	fmt.Println()
+	fmt.Println("  RPC: ethernova_forkStatus, ethernova_chainConfig, ethernova_nodeHealth")
+	fmt.Println("==========================================================")
 }
 func validateEthernovaGenesisInfo(info *ethernovaGenesisInfo) error {
 	if info.ChainID != ethernova.NewChainID {
@@ -439,6 +459,15 @@ func writeEthernovaLock(path string, info *ethernovaGenesisInfo) error {
 		NetworkID:           info.NetworkID,
 		ExpectedGenesisHash: info.ExpectedGenesisHash.Hex(),
 		GenesisSHA256:       info.GenesisSHA256,
+		ForkStatus: &forkLockStatus{
+			EVMCompatApplied: true,
+			EVMCompatBlock:   ethernova.EVMCompatibilityForkBlock,
+			EIP658Applied:    true,
+			EIP658Block:      ethernova.EIP658ForkBlock,
+			MegaForkApplied:  true,
+			MegaForkBlock:    ethernova.MegaForkBlock,
+			LastCheckedAt:    time.Now().UTC().Format(time.RFC3339),
+		},
 	}
 	payload, err := json.MarshalIndent(lock, "", "  ")
 	if err != nil {

@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/params/mutations"
 	"github.com/ethereum/go-ethereum/params/types/ctypes"
@@ -620,6 +621,10 @@ func (ethash *Ethash) Prepare(chain consensus.ChainHeaderReader, header *types.H
 func (ethash *Ethash) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, withdrawals []*types.Withdrawal) {
 	// Accumulate any block and uncle rewards and commit the final state root
 	mutations.AccumulateRewards(chain.Config(), state, header, uncles)
+
+	// Log block reward for Ethernova monitoring
+	reward, _ := mutations.GetRewards(chain.Config(), header, uncles)
+	log.Debug("Block reward", "block", header.Number, "miner", header.Coinbase, "reward", reward, "uncles", len(uncles), "txs", len(txs))
 }
 
 // FinalizeAndAssemble implements consensus.Engine, accumulating the block and

@@ -50,8 +50,8 @@ import (
 )
 
 const (
-	clientIdentifier   = "core" // Client identifier to advertise over the network
-	databaseIdentifier = "geth" // Client identifier to be used by the database
+	clientIdentifier   = "ethernova" // Client identifier to advertise over the network
+	databaseIdentifier = "geth"      // Client identifier to be used by the database
 )
 
 var (
@@ -257,6 +257,7 @@ func init() {
 		// See ethernova_cmds.go:
 		sanitycheckCommand,
 		printGenesisCommand,
+		validateConfigCommand,
 		licenseCommand,
 		// See config.go
 		dumpConfigCommand,

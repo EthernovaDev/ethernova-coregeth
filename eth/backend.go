@@ -424,6 +424,9 @@ func (s *Ethereum) APIs() []rpc.API {
 		}, {
 			Namespace: "net",
 			Service:   s.netRPCService,
+		}, {
+			Namespace: "ethernova",
+			Service:   NewEthernovaAPI(s),
 		},
 	}...)
 }
