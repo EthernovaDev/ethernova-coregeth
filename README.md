@@ -51,7 +51,7 @@ On Ethereum, a simple token transfer and a complex DEX swap with 10 storage writ
 
 ## Ethernova 2.0 — The Noven Fork
 
-Version 2.0 introduces the **Noven Fork**, named after community developer [Noven](https://github.com/novenrizkia) who designed and built the adaptive gas system. It activates at **mainnet block 480,000** and brings:
+Version 2.0 introduces the **Noven Fork**, named after community developer [Noven](https://github.com/novenrizkia856-ui) who designed and built the adaptive gas system. It activates at **mainnet block 480,000** and brings:
 
 ### Adaptive Gas V2 (Consensus Rule)
 
@@ -265,7 +265,7 @@ make geth
 ## Credits
 
 Ethernova 2.0 was built by the Ethernova team with major contributions from:
-- **Noven** ([novenrizkia](https://github.com/novenrizkia)) — Adaptive Gas V2, parallel execution classifier, consensus fixes
+- **Noven** ([novenrizkia856-ui](https://github.com/novenrizkia856-ui)) — Adaptive Gas V2, parallel execution classifier, consensus fixes
 - **XBiNodes** ([xbinodes.com](https://xbinodes.com)) — Infrastructure partner, public RPC node
 
 Based on [CoreGeth](https://github.com/etclabscore/core-geth) (downstream of [go-ethereum](https://github.com/ethereum/go-ethereum)).
