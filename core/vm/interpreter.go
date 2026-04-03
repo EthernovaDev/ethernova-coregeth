@@ -182,6 +182,10 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		op = contract.GetOp(pc)
 		operation := in.table[op]
 		cost = operation.constantGas // For tracing
+		// Ethernova v2.0 (Noven Fork): record opcode for trace-based adaptive gas.
+		// Lightweight integer increment — no allocation, no branching overhead.
+		// Counters are on the EVM struct (per-tx scope), read after execution completes.
+		in.evm.TraceCounters.RecordOpcode(op)
 		// Validate stack
 		if sLen := stack.len(); sLen < operation.minStack {
 			return nil, &ErrStackUnderflow{stackLen: sLen, required: operation.minStack}

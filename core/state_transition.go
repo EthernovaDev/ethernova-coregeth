@@ -26,6 +26,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params/ethernova"
 	"github.com/ethereum/go-ethereum/params/vars"
 	"github.com/holiman/uint256"
 )
@@ -455,6 +457,9 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// - reset transient storage(eip 1153)
 	st.state.Prepare(eip2930f, eip3651f, msg.From, st.evm.Context.Coinbase, msg.To, st.evm.ActivePrecompiles(), msg.AccessList)
 
+	// Ethernova v2.0 (Noven Fork): reset trace counters before execution.
+	st.evm.TraceCounters.Reset()
+
 	var (
 		ret   []byte
 		vmerr error // vm errors do not effect consensus and are therefore not assigned to err
@@ -465,6 +470,60 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(msg.From, st.state.GetNonce(sender.Address())+1)
 		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, st.gasRemaining, value)
+	}
+
+	// Ethernova v2.0 (Noven Fork): Trace-based adaptive gas adjustment (POST-EXECUTION)
+	// ================================================================
+	// CONSENSUS RULE — activated at AdaptiveGasV2ForkBlock (block 460,000).
+	// Applied to execution gas only (gasUsed - intrinsicGas).
+	// Intrinsic gas (21000 for transfer, etc.) is never modified.
+	// DETERMINISM: Pure function of TraceCounters → same tx = same adjustment.
+	// ================================================================
+	currentBlock := st.evm.Context.BlockNumber.Uint64()
+	adaptiveGasV2Active := !contractCreation && currentBlock >= ethernova.AdaptiveGasV2ForkBlock
+	if adaptiveGasV2Active {
+		var newRemaining uint64
+		var adjustPct int64
+		var classification *vm.ExecutionClassification
+		newRemaining, adjustPct, classification = vm.ApplyAdaptiveGasV2(
+			&st.evm.TraceCounters,
+			st.gasUsed(),
+			st.gasRemaining,
+			gas, // intrinsicGas
+		)
+		st.gasRemaining = newRemaining
+
+		if classification != nil {
+			vm.LastTxClassification = classification
+		}
+
+		log.Debug("[AdaptiveGasV2] post-execution adjustment",
+			"block", currentBlock,
+			"from", msg.From.Hex(),
+			"category", func() string {
+				if classification != nil {
+					return classification.Category.String()
+				}
+				return "none"
+			}(),
+			"adjustPct", fmt.Sprintf("%+d%%", adjustPct),
+			"gasUsed", st.gasUsed(),
+			"gasRemaining", st.gasRemaining,
+		)
+	}
+
+	// Ethernova v2.0 (Noven Fork): Extra gas refund on revert
+	// If the transaction reverted, refund 90% of execution gas.
+	// Anti-DoS: only applies if execution gas < 100,000.
+	if vmerr == vm.ErrExecutionReverted && vm.RevertRefundEnabled && currentBlock >= ethernova.NovenForkBlock {
+		executionGas := st.gasUsed()
+		if executionGas > gas {
+			executionGas -= gas
+		}
+		refund := vm.CalculateRevertRefund(executionGas, gas)
+		if refund > 0 {
+			st.gasRemaining += refund
+		}
 	}
 
 	var gasRefund uint64

@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/bls12381"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
+	"github.com/ethereum/go-ethereum/params/ethernova"
 	"github.com/ethereum/go-ethereum/params/types/ctypes"
 	"github.com/ethereum/go-ethereum/params/vars"
 	"golang.org/x/crypto/ripemd160"
@@ -48,6 +49,21 @@ var basePrecompiledContracts = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{2}): &sha256hash{},
 	common.BytesToAddress([]byte{3}): &ripemd160hash{},
 	common.BytesToAddress([]byte{4}): &dataCopy{},
+}
+
+// Ethernova v2.0 (Noven Fork): Native precompiles at addresses 0x20-0x28.
+// These are always registered but have no effect on blocks before NovenForkBlock
+// because no contracts call these addresses on the existing chain.
+var PrecompiledContractsEthernova = map[common.Address]PrecompiledContract{
+	common.BytesToAddress([]byte{0x20}): &novaBatchHash{},
+	common.BytesToAddress([]byte{0x21}): &novaBatchVerify{},
+	common.BytesToAddress([]byte{0x22}): &novaAccountManager{},
+	common.BytesToAddress([]byte{0x23}): &novaFrameApprove{},
+	common.BytesToAddress([]byte{0x24}): &novaFrameIntrospect{},
+	common.BytesToAddress([]byte{0x25}): &novaTokenManager{},
+	common.BytesToAddress([]byte{0x26}): &novaShieldedPool{},
+	common.BytesToAddress([]byte{0x27}): &novaContractUpgrade{},
+	common.BytesToAddress([]byte{0x28}): &novaOracle{},
 }
 
 var PrecompiledContractsBLS = map[common.Address]PrecompiledContract{
@@ -104,6 +120,13 @@ func PrecompiledContractsForConfig(config ctypes.ChainConfigurator, bn *big.Int,
 	}
 	if config.IsEnabledByTime(config.GetEIP4844TransitionTime, bt) || config.IsEnabled(config.GetEIP4844Transition, bn) {
 		precompileds[common.BytesToAddress([]byte{0x0a})] = &kzgPointEvaluation{}
+	}
+
+	// Ethernova v2.0 (Noven Fork): Native precompiles 0x20-0x28.
+	// Activated at NovenForkBlock. Safe to register always because no
+	// existing contracts call addresses 0x20-0x28.
+	if bn != nil && bn.Uint64() >= ethernova.NovenForkBlock {
+		mergeContracts(precompileds, PrecompiledContractsEthernova)
 	}
 
 	return precompileds

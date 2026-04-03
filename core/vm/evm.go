@@ -141,6 +141,21 @@ type EVM struct {
 	// callErrorTemp holds any errors caused during the execution of system opcodes (0xf0)
 	// NOTE: it's being used only for tracers
 	CallErrorTemp error
+
+	// Ethernova v2.0 (Noven Fork): Trace-based adaptive gas counters.
+	// Collects opcode execution counts during EVM execution for post-execution
+	// gas adjustment. These are simple uint64 counters — no allocations, no maps.
+	// Reset at the start of each transaction by state_transition.go.
+	// Only the top-level (depth==0) counters are used for gas adjustment;
+	// nested calls accumulate into the same counters since the EVM instance
+	// is shared across the entire call tree.
+	TraceCounters TraceCounters
+
+	// Ethernova v2.0 (Noven Fork): per-EVM reentrancy guard.
+	// Each EVM instance has its own reentrancy guard to prevent
+	// concurrent EVM instances (eth_call, miner, tracer) from
+	// interfering with block processing.
+	reentrancyGuard PerEVMReentrancyGuard
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
@@ -176,6 +191,9 @@ func NewEVM(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig
 
 	evm.interpreter = evm.interpreters[0]
 
+	// Ethernova v2.0 (Noven Fork): initialize per-EVM reentrancy guard
+	evm.reentrancyGuard.Init()
+
 	return evm
 }
 
@@ -184,6 +202,9 @@ func NewEVM(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig
 func (evm *EVM) Reset(txCtx TxContext, statedb StateDB) {
 	evm.TxContext = txCtx
 	evm.StateDB = statedb
+	// Ethernova v2.0 (Noven Fork): reset trace counters and reentrancy guard
+	evm.TraceCounters.Reset()
+	evm.reentrancyGuard.Reset()
 }
 
 // Cancel cancels any running EVM operation. This may be called concurrently and
@@ -262,6 +283,15 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		if len(code) == 0 {
 			ret, err = nil, nil // gas is unchanged
 		} else {
+			// Ethernova v2.0 (Noven Fork): Native reentrancy protection.
+			// Block reentrant calls to contracts (depth > 0 only).
+			// Uses per-EVM guard to prevent concurrent EVM instances from interfering.
+			if evm.depth > 0 && !evm.reentrancyGuard.Enter(addr) {
+				return nil, gas, ErrExecutionReverted
+			}
+			if evm.depth > 0 {
+				defer evm.reentrancyGuard.Exit(addr)
+			}
 			addrCopy := addr
 			// If the account has no code, we can abort here
 			// The depth-check is already done, and precompiles handled above
