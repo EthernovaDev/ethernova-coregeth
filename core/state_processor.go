@@ -22,10 +22,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params/mutations"
 	"github.com/ethereum/go-ethereum/params/types/ctypes"
 	"github.com/ethereum/go-ethereum/params/vars"
@@ -59,13 +61,14 @@ func NewStateProcessor(config ctypes.ChainConfigurator, bc *BlockChain, engine c
 // transactions failed to execute due to insufficient gas it will return an error.
 func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg vm.Config) (types.Receipts, []*types.Log, uint64, error) {
 	var (
-		receipts    types.Receipts
-		usedGas     = new(uint64)
-		header      = block.Header()
-		blockHash   = block.Hash()
-		blockNumber = block.Number()
-		allLogs     []*types.Log
-		gp          = new(GasPool).AddGas(block.GasLimit())
+		receipts       types.Receipts
+		usedGas        = new(uint64)
+		header         = block.Header()
+		blockHash      = block.Hash()
+		blockNumber    = block.Number()
+		allLogs        []*types.Log
+		gp             = new(GasPool).AddGas(block.GasLimit())
+		blockResources vm.ResourceVector
 	)
 	// Mutate the block and state according to any hard-fork specs
 	isDAOSupport := p.config.IsEnabled(p.config.GetEthashEIP779Transition, block.Number())
@@ -79,9 +82,63 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		vmenv   = vm.NewEVM(context, vm.TxContext{}, statedb, p.config, cfg)
 		signer  = types.MakeSigner(p.config, header.Number, header.Time)
 	)
+
+	// Ethernova v3.0: Create per-block trace aggregator for convergent tuner.
+	// Collects classification data from every tx and produces a
+	// BlockWorkloadSample at block end. Set on the EVM so state_transition.go
+	// can feed each tx's classification into it.
+	blockAgg := vm.NewBlockTraceAggregator(block.NumberU64())
+	vmenv.BlockAggregator = blockAgg
 	if beaconRoot := block.BeaconRoot(); beaconRoot != nil {
 		ProcessBeaconBlockRoot(*beaconRoot, vmenv, statedb)
 	}
+
+	// ============================================================
+	// NIP-0004 Phase 2: Deferred Processing Phase (Phase 0 of block)
+	//
+	// Drain the Pending Effects Queue before any transaction in this
+	// block is applied. This MUST run on both validator (this path)
+	// and miner (worker.makeEnv / fillTransactions entry point), and
+	// MUST produce identical state mutations on both. The SafeTuner
+	// incident (see comment block above around line 119) is the
+	// canonical precedent for why asymmetric hooks cause consensus
+	// split.
+	//
+	// Gating is handled inside ProcessDeferredEffects — before
+	// DeferredExecForkBlock it is a true no-op with zero state touch.
+	// ============================================================
+	dpRes := ProcessDeferredEffects(header, statedb)
+	if dpRes != nil && !dpRes.NoOp && (dpRes.Processed > 0 || dpRes.FailedHandlers > 0) {
+		log.Debug("deferred processing drained",
+			"block", dpRes.BlockNumber,
+			"head", dpRes.Head,
+			"newHead", dpRes.NewHead,
+			"processed", dpRes.Processed,
+			"failed", dpRes.FailedHandlers,
+			"skipped", dpRes.Skipped,
+			"capHit", dpRes.CapHit)
+	}
+
+	// ============================================================
+	// NIP-0004 Phase 11: Application-Layer Async Callback Dispatch
+	//
+	// Runs AFTER the deferred queue drain so any state mutations made
+	// by drained handlers are visible to async callbacks. Consensus-
+	// critical: MUST mirror the call in miner/worker.go exactly.
+	//
+	// Fork gating is inside ProcessApplicationAsyncCallbacks — pre-fork
+	// blocks are a true no-op.
+	// ============================================================
+	asyncRes := ProcessApplicationAsyncCallbacks(header, statedb, p.bc, p.config)
+	if asyncRes != nil && !asyncRes.NoOp && (asyncRes.Dispatched > 0 || asyncRes.Reverted > 0 || asyncRes.Skipped > 0) {
+		log.Debug("async callback dispatch",
+			"block", asyncRes.BlockNumber,
+			"dispatched", asyncRes.Dispatched,
+			"reverted", asyncRes.Reverted,
+			"skipped", asyncRes.Skipped,
+			"capHit", asyncRes.CapHit)
+	}
+
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		msg, err := TransactionToMessage(tx, signer, header.BaseFee)
@@ -93,9 +150,100 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
+		if sample, ok := vm.GlobalResourceMonitor.GetTx(tx.Hash()); ok {
+			blockResources = blockResources.Add(sample.Vector)
+		}
 		receipts = append(receipts, receipt)
 		allLogs = append(allLogs, receipt.Logs...)
 	}
+	vm.GlobalAdaptiveResourcePricer.RecordBlock(block.NumberU64(), block.GasLimit(), blockResources)
+
+	// ================================================================
+	// NIP-0004 Phase 10D — Multi-Dimensional Resource Metering: header
+	// validation. After the fork the block header MUST carry:
+	//   - ResourceUsed      = sum of per-tx vectors (recomputed above
+	//                         into blockResources).
+	//   - ResourceBasePrice = pure function of (parent.ResourceBasePrice,
+	//                         parent.ResourceUsed, parent.GasLimit).
+	// Both fields are CONSENSUS-CRITICAL: a missing or mismatched value
+	// rejects the block. Pre-fork blocks (block.NumberU64() <
+	// ResourceMeteringForkBlock) skip the check entirely so legacy
+	// imports remain unaffected.
+	// ================================================================
+	if vm.IsResourceMeteringActive(block.NumberU64()) {
+		expectedUsed := types.ResourceLimits{
+			Compute:     blockResources.Compute,
+			StateRead:   blockResources.StateRead,
+			StateWrite:  blockResources.StateWrite,
+			ProtocolOps: blockResources.ProtocolOps,
+			ProofVerify: blockResources.ProofVerify,
+		}
+		if header.ResourceUsed == nil {
+			return nil, nil, 0, fmt.Errorf(
+				"phase10d: header.ResourceUsed missing at block %d (post-fork)",
+				block.NumberU64(),
+			)
+		}
+		if !header.ResourceUsed.Equal(expectedUsed) {
+			return nil, nil, 0, fmt.Errorf(
+				"phase10d: header.ResourceUsed mismatch at block %d: have %+v want %+v",
+				block.NumberU64(), *header.ResourceUsed, expectedUsed,
+			)
+		}
+		// Resolve parent header to verify the per-dimension base price
+		// table. Genesis-after-fork (block N == ResourceMeteringForkBlock)
+		// uses BasePriceBips() as parent baseline so the first post-fork
+		// block always returns the base table.
+		var parentPrice, parentUsage *types.ResourceLimits
+		var parentGasLimit uint64
+		if block.NumberU64() > 0 {
+			parent := p.bc.GetHeaderByHash(block.ParentHash())
+			if parent == nil {
+				return nil, nil, 0, fmt.Errorf(
+					"phase10d: parent header %s not found while validating block %d",
+					block.ParentHash().Hex(), block.NumberU64(),
+				)
+			}
+			parentPrice = parent.ResourceBasePrice
+			parentUsage = parent.ResourceUsed
+			parentGasLimit = parent.GasLimit
+		}
+		expectedPrice := misc.CalcNextResourcePrice(parentPrice, parentUsage, parentGasLimit)
+		if header.ResourceBasePrice == nil {
+			return nil, nil, 0, fmt.Errorf(
+				"phase10d: header.ResourceBasePrice missing at block %d (post-fork)",
+				block.NumberU64(),
+			)
+		}
+		if !header.ResourceBasePrice.Equal(expectedPrice) {
+			return nil, nil, 0, fmt.Errorf(
+				"phase10d: header.ResourceBasePrice mismatch at block %d: have %+v want %+v",
+				block.NumberU64(), *header.ResourceBasePrice, expectedPrice,
+			)
+		}
+	}
+
+	// Ethernova v3.0: Feed completed block workload sample to convergent tuner.
+	// This runs after all txs are processed and produces deterministic EMA
+	// updates from the block-level aggregate trace data.
+	if vm.GlobalConvergentTuner.IsEnabled() {
+		sample := blockAgg.Finalize()
+		vm.GlobalConvergentTuner.FeedBlock(sample)
+	}
+
+	// Ethernova v3.0: Feed gas pool safety metrics to SafeTuner.
+	// MONITORING ONLY (v3.1): SafeTuner scaleFactor is no longer used in
+	// the consensus-critical gas adjustment path (see state_transition.go).
+	// The SafeTuner continues to collect metrics for RPC observability.
+	// NOTE: This code only runs via Process() (validators), NOT on miners
+	// (who use WriteBlockAndSetHead). This asymmetry is why the SafeTuner
+	// was removed from the consensus path — miners and validators would
+	// have different SafeTuner states.
+	if vm.GlobalSafeTuner.IsEnabled() {
+		safetySample := blockAgg.FinalizeSafety(block.GasLimit())
+		vm.GlobalSafeTuner.UpdateAfterBlock(safetySample)
+	}
+
 	// Fail if Shanghai not enabled and len(withdrawals) is non-zero.
 	withdrawals := block.Withdrawals()
 	blockTime := block.Time()
@@ -160,6 +308,9 @@ func applyTransaction(msg *Message, config ctypes.ChainConfigurator, gp *GasPool
 	receipt.BlockHash = blockHash
 	receipt.BlockNumber = blockNumber
 	receipt.TransactionIndex = uint(statedb.TxIndex())
+	if result.ResourceVector != nil {
+		vm.GlobalResourceMonitor.RecordTx(tx.Hash(), blockNumber.Uint64(), receipt.TransactionIndex, *result.ResourceVector)
+	}
 	return receipt, err
 }
 

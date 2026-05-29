@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/params/ethernova"
 	"github.com/ethereum/go-ethereum/params/types/ctypes"
 	"github.com/ethereum/go-ethereum/params/vars"
 )
@@ -187,6 +188,11 @@ func instructionSetForConfig(config ctypes.ChainConfigurator, isPostMerge bool, 
 	if config.IsEnabled(config.GetEIP2929Transition, bn) {
 		enable2929(instructionSet) // Access lists for trie accesses https://eips.ethereum.org/EIPS/eip-2929
 	}
+	if stateLifecycleActive(config, bn) && instructionSet[SLOAD].dynamicGas == nil {
+		base := instructionSet[SLOAD].constantGas
+		instructionSet[SLOAD].constantGas = 0
+		instructionSet[SLOAD].dynamicGas = makeGasSLoadLifecycle(base)
+	}
 	if config.IsEnabled(config.GetEIP3529Transition, bn) {
 		enable3529(instructionSet) // Reduction in refunds https://eips.ethereum.org/EIPS/eip-3529
 	}
@@ -237,8 +243,21 @@ func instructionSetForConfig(config ctypes.ChainConfigurator, isPostMerge bool, 
 	if config.IsEnabledByTime(config.GetEIP6780TransitionTime, bt) || config.IsEnabled(config.GetEIP6780Transition, bn) {
 		enable6780(instructionSet) // EIP-6780 SELFDESTRUCT only in same transaction
 	}
+	if novaOpcodesActive(config, bn) {
+		enableNovaOpcodes(instructionSet)
+	}
 
 	return validate(instructionSet)
+}
+
+func stateLifecycleActive(config ctypes.ChainConfigurator, bn *big.Int) bool {
+	if config == nil || !ethernova.IsEthernovaChainID(config.GetChainID()) {
+		return false
+	}
+	if ethernova.LifecycleSloadSurchargeForkBlock == 0 {
+		return true
+	}
+	return bn != nil && bn.Sign() >= 0 && bn.Uint64() >= ethernova.LifecycleSloadSurchargeForkBlock
 }
 
 // newBaseInstructionSet returns Frontier instructions

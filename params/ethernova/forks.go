@@ -9,10 +9,10 @@ const (
 	MegaForkBlock uint64 = 118200
 
 	// ============================================================
-	// NOVEN FORK — Ethernova 2.0
+	// NOVEN FORK — Ethernova 2.0 (mainnet baseline)
 	// Named after community developer Noven who built the adaptive
 	// gas system and parallel execution classifier.
-	// All features below activate at NovenForkBlock.
+	// On mainnet all Noven Fork features activated at block 480,000.
 	// ============================================================
 
 	// NovenForkBlock activates ALL Noven Fork features simultaneously:
@@ -23,12 +23,6 @@ const (
 	//   - State expiry (contract garbage collection)
 	//   - Tempo transactions (atomic batching)
 	//   - Frame Account Abstraction
-	//
-	// ALL mainnet nodes MUST upgrade to v2.0.0 BEFORE this block.
-	// Nodes running v1.3.x will refuse to start past this block
-	// (enforced by ethernovaPatchConfigIfNeeded).
-	//
-	// Set to 460,000 (~2 days from block 445,183 at 11s/block)
 	NovenForkBlock uint64 = 480000
 
 	// AdaptiveGasV2ForkBlock activates trace-based adaptive gas pricing.
@@ -43,7 +37,7 @@ const (
 	// EOA wallets are NEVER expired. Archived state can be restored.
 	StateExpiryForkBlock uint64 = 480000
 	// StateExpiryPeriod is the number of blocks of inactivity before archival.
-	// ~115 days at 11s/block. Much longer than devnet for safety.
+	// Mainnet retention window: 900000 blocks (~115 days at 11s/block).
 	StateExpiryPeriod uint64 = 900000
 
 	// TempoTxForkBlock activates Tempo-style smart transactions.
@@ -53,4 +47,386 @@ const (
 	// FrameAAForkBlock activates Frame-style Account Abstraction.
 	// Precompiles 0x23 (novaFrameApprove) and 0x24 (novaFrameIntrospect).
 	FrameAAForkBlock uint64 = 480000
+
+	// ExecutionDomainForkBlock activates NIP-0004 Phase 6 EF01/EF02
+	// bytecode-prefix interpretation and capability propagation. Mainnet
+	// must not accept domain-prefixed runtime bytecode before this block;
+	// pre-fork behavior must remain identical to the current EVM/EIP-3541
+	// rules.
+	ExecutionDomainForkBlock uint64 = 853400
+
+	// ============================================================
+	// NIP-0004 — Layered Deterministic Computer
+	// Phase 1: Protocol Object Trie Foundation
+	// Adds first-class Protocol Objects (Mailbox, Session, ContentRef,
+	// Identity, Subscription, GameRoom) to the state tree.
+	// Objects are stored at system address 0xFF01 in the account trie.
+	// ============================================================
+
+	// ProtocolObjectForkBlock activates Protocol Object support.
+	// On mainnet: block 853,400 for the NIP-0004 activation rollout.
+	// On mainnet: set to the agreed activation block.
+	ProtocolObjectForkBlock uint64 = 853400
+
+	// ============================================================
+	// NIP-0004 — Layered Deterministic Computer
+	// Phase 2: Deferred Execution Engine
+	// Introduces a Pending Effects Queue stored at system address
+	// 0xFF02 and a Deferred Processing Phase that runs at the start
+	// of each block (before regular transactions) once this fork is
+	// active. Effects enqueued in block N are processed at the start
+	// of block N+1 in strict insertion order (monotonic sequence).
+	// ============================================================
+
+	// DeferredExecForkBlock activates the Deferred Execution Engine.
+	// On mainnet: block 853,400. The queue starts empty at activation.
+	// On mainnet: set to the agreed activation block. The Phase 0
+	// Deferred Processing step is gated by block.Number() >=
+	// DeferredExecForkBlock in BOTH the validator state_processor
+	// path AND the miner worker path. Any asymmetry = consensus split.
+	DeferredExecForkBlock uint64 = 853400
+
+	// MaxPendingEffectsPerBlock caps the number of enqueue operations
+	// allowed in a single block. When the limit is reached, further
+	// enqueueEffect precompile calls revert (backpressure). This is
+	// the §9.1 queue-abuse mitigation from NIP-0004. Per-block, not
+	// per-tx, so an attacker cannot split enqueues across txs to bypass.
+	MaxPendingEffectsPerBlock uint64 = 1024
+
+	// MaxDeferredProcessingPerBlock caps the number of entries the
+	// Deferred Processing Phase will drain in a single block. If the
+	// queue grows faster than drain, processing falls behind — this is
+	// intentional: it bounds block validation time. Set equal to the
+	// per-block enqueue cap so steady state matches steady-in.
+	MaxDeferredProcessingPerBlock uint64 = 1024
+
+	// MaxDeferredEffectPayloadBytes caps individual effect payload size.
+	// Larger payloads must be stored externally and referenced by hash
+	// (a pattern that will be introduced by ContentRef in Phase 3).
+	MaxDeferredEffectPayloadBytes uint64 = 512
+
+	// ============================================================
+	// NIP-0004 — Layered Deterministic Computer
+	// Phase 3: Content Reference Primitive
+	//
+	// First real, live Protocol Object type. A ContentRef is a
+	// minimal immutable pointer to off-chain content plus a rent-
+	// backed expiry. Storage lives at system address 0xFF03; the
+	// object body itself is written into the Phase 1 Protocol Object
+	// Registry (0xFF01) under type_tag = ProtoTypeContentReference.
+	//
+	// Precompile address 0x2B (NOT 0x2A as the original NIP-0004
+	// §3.4 draft suggested — 0x2A is already occupied by the Phase 2
+	// Deferred Queue in this codebase). The conflict and resolution
+	// are documented in NIP-0004 Phase 3 spec §8.
+	// ============================================================
+
+	// ContentRefForkBlock activates the ContentRef precompile (0x2B),
+	// its rent engine, and the nova_getContentRef / nova_listContentRefs
+	// RPC surface. On mainnet: block 853,400 for the coordinated activation rollout.
+	ContentRefForkBlock uint64 = 853400
+
+	// RentEpochLength is the number of blocks between rent deductions.
+	// At every block where block_number % RentEpochLength == 0 and
+	// block_number > 0, every live ContentRef has its rent_balance
+	// decremented by RentRatePerBytePerBlock * size * RentEpochLength.
+	// CONSENSUS-CRITICAL: fixed integer, no configuration at runtime.
+	RentEpochLength uint64 = 10000
+
+	// RentRatePerBytePerBlock is the rent rate in wei per byte per block.
+	// Deduction per epoch per ContentRef = rate * size * RentEpochLength.
+	// Example: 1024-byte ContentRef at 10000-block epoch costs
+	//   1 * 1024 * 10000 = 10_240_000 wei per epoch (~0.00000001024 NOVA).
+	// Initial conservative rent floor. Any economic adjustment is a hard fork.
+	RentRatePerBytePerBlock uint64 = 1
+
+	// MinRentPrepayWei is the minimum rent prepay accepted by createContentRef.
+	// Must cover at least one epoch of rent for a 1-byte object. Prevents
+	// trivial ContentRef spam by rejecting zero-rent creations up front.
+	MinRentPrepayWei uint64 = 10000
+
+	// MaxContentRefSize caps the size field of any single ContentRef.
+	// This is the declared off-chain size of the referenced content —
+	// on-chain storage per object is fixed (hash + metadata), this cap
+	// exists to prevent absurd rent-calculation inputs (e.g. size =
+	// 2^63 would overflow the rent multiplication).
+	MaxContentRefSize uint64 = 1 << 32 // 4 GiB
+
+	// MaxContentRefTypeBytes caps the content_type field length (MIME-like).
+	MaxContentRefTypeBytes uint64 = 64
+
+	// MaxContentRefAvailabilityProofBytes caps the availability_proof field.
+	// The proof is typically a single 32-byte commitment or a short CID.
+	// A hard cap avoids unbounded Protocol Object payloads.
+	MaxContentRefAvailabilityProofBytes uint64 = 256
+
+	// MaxContentRefsPerRentEpoch caps how many ContentRefs are processed
+	// in a single epoch-boundary Finalize() pass. If the live population
+	// exceeds this, processing rolls over to subsequent epochs via the
+	// cr_rent_cursor slot — bounded per-block work, no liveness loss.
+	// The cap is generous because the work is simple arithmetic +
+	// single-slot writes; 8192 objects = a few ms at most.
+	MaxContentRefsPerRentEpoch uint64 = 8192
+
+	// ============================================================
+	// NIP-0004 — Layered Deterministic Computer
+	// Phase 4: Mailbox Primitive
+	//
+	// Mailbox is the first stateful Protocol Object type with a queue
+	// and mutation. It exposes two precompiles:
+	//   - 0x2C novaMailboxManager : create / configure / destroy
+	//   - 0x35 novaMailboxOps     : send / recv / peek / count
+	//
+	// Send messages enter the Phase 2 deferred queue with effectType =
+	// EffectTypeMailboxSend (0x10). At block N+1 the deferred processing
+	// dispatcher routes them to vm.HandleMailboxSendEffect for delivery
+	// to the target mailbox's queue at MailboxOpsAddr (0xFF04).
+	//
+	// On devnet: block 0 (active from genesis, same as the rest of the
+	// NIP-0004 stack). On mainnet: set to the agreed activation block.
+	// Pre-fork, both 0x2C and 0x35 revert all selectors so there is no
+	// incidental state touch on early blocks.
+	// ============================================================
+
+	// MailboxForkBlock activates the Phase 4 Mailbox primitive: the 0x2C
+	// and 0x35 precompiles and the Mailbox handler in the deferred
+	// processing dispatcher. Gating MUST be identical on both validator
+	// and miner paths — the dispatch is reached from
+	// core.ProcessDeferredEffects which is called by both
+	// core/state_processor.go and miner/worker.go.
+	MailboxForkBlock uint64 = 853400
+
+	// ============================================================
+	// NIP-0004 — Layered Deterministic Computer
+	// Phase 5: State Lifecycle Tiers
+	//
+	// 5-tier state lifecycle for Account state, Contract storage,
+	// and Protocol Object state:
+	//
+	//   Active   -> recently touched (<= ActiveTierBlocks since touch)
+	//   Warm     -> touched between ActiveTierBlocks and WarmTierBlocks
+	//   Cold     -> touched between WarmTierBlocks and ColdTierBlocks
+	//   Archived -> not touched within ColdTierBlocks (cold root persisted)
+	//   Expired  -> archive policy explicitly drops the cold root
+	//
+	// CONSENSUS-CRITICAL invariants:
+	//   1. Tier is a PURE FUNCTION of (lastTouched, currentBlock,
+	//      thresholds). No wall-clock, no map iteration, no randomness.
+	//   2. Sweep iteration order is sorted-bytes; the candidate list
+	//      comes from the Phase 15 'x' index which is itself written
+	//      sorted.
+	//   3. Warming fee = tier_gap * size * fee_per_byte using uint64
+	//      arithmetic with overflow-safe saturation.
+	//   4. The 0x2F novaStateWitness precompile only verifies proofs
+	//      and updates the external LevelDB index — it never mutates
+	//      the state trie. State-root divergence cannot originate
+	//      from Phase 5.
+	// ============================================================
+
+	// StateLifecycleForkBlock activates Phase 5 tier tracking, the
+	// novaStateWitness precompile
+	// (0x2F), and the ethernova_getStateTier / getStateWitness /
+	// getWarmStateRoot / stateLifecycleConfig RPC surface.
+	//
+	// On devnet: block 0 (active from genesis, same as the rest of
+	// the NIP-0004 stack). On mainnet: set to the agreed activation
+	// block. Pre-fork the tier surcharge is exactly zero, the
+	// precompile reverts on every selector, and the RPC methods
+	// return tier=Active for any query — strict no-op on early
+	// blocks.
+	StateLifecycleForkBlock uint64 = 853400
+
+	// LifecycleSloadSurchargeForkBlock activates the consensus gas-rule
+	// portion of Phase 5: the SLOAD warming-fee surcharge. This is split
+	// from StateLifecycleForkBlock on devnet because the first surcharge
+	// implementation only covered the EIP-2929 SLOAD path. Enabling the
+	// corrected pre-EIP-2929 SLOAD path retroactively would make existing
+	// historical blocks recompute different gasUsed. Treat it as a normal
+	// hard-fork and activate only after every devnet node has upgraded.
+	LifecycleSloadSurchargeForkBlock uint64 = 853400
+
+	// ActiveTierBlocks is the number of blocks since last_touched
+	// within which an account/object is considered Active (no
+	// surcharge). Mainnet activation target uses production threshold.
+	// Mainnet target: 100_000 blocks (~12.7 days at 11s/block).
+	ActiveTierBlocks uint64 = 100000
+
+	// WarmTierBlocks is the upper bound on the Warm tier age in
+	// blocks. Above ActiveTierBlocks and at-or-below WarmTierBlocks
+	// => Warm. Mainnet target: 1_000_000.
+	WarmTierBlocks uint64 = 1000000
+
+	// ColdTierBlocks is the upper bound on the Cold tier age in
+	// blocks. Above WarmTierBlocks and at-or-below ColdTierBlocks
+	// => Cold. Above ColdTierBlocks => Archived.
+	// Mainnet target: 10_000_000.
+	ColdTierBlocks uint64 = 10000000
+
+	// WarmingFeePerByte is the wei-of-gas surcharge applied per byte
+	// of touched state when the tier is non-Active:
+	//
+	//     fee_gas = tier_gap * size_bytes * WarmingFeePerByte
+	//
+	// where tier_gap is 1 for Warm, 2 for Cold, 3 for Archived. For
+	// a 32-byte slot at Warm with mainnet fee=50 costs
+	// 32 * 1 * 50 = 1600 extra gas. Any fee adjustment is a
+	// hard fork and must be coordinated before activation.
+	WarmingFeePerByte uint64 = 50
+
+	// MaxLifecycleSweepPerBlock caps the number of accounts the
+	// lifecycle sweep examines at a single block. Beyond this cap
+	// the remaining suffix rolls forward to the next block. The cap
+	// is generous because the work is integer comparisons + a small
+	// LevelDB batch.
+	MaxLifecycleSweepPerBlock uint64 = 2048
+
+	// LifecycleStorageSlotSize is the canonical "size" used for the
+	// tier surcharge on a single storage-slot operation. EVM storage
+	// slots are always 32 bytes; this constant exists so the
+	// surcharge formula reads identically in operations_acl.go and
+	// in the lifecycle engine.
+	LifecycleStorageSlotSize uint64 = 32
+
+	// LifecycleAccountSize is the canonical "size" used for tier
+	// surcharge on a whole-account access. Conservative ~96 bytes
+	// covers the slim RLP account body. Phase 5 v1 only applies the
+	// storage-slot surcharge inside SLOAD; the account-level
+	// constant is reserved for the Phase 5D account-archival path
+	// that follows.
+	LifecycleAccountSize uint64 = 96
+
+	// StateWitnessVerifyGas prices selector 0x01 (read-only Merkle
+	// proof check). Comparable to one cold SLOAD plus a few hash
+	// ops for proof traversal.
+	StateWitnessVerifyGas uint64 = 5000
+
+	// StateWitnessRestoreGas prices selector 0x02 (verify + write).
+	// Verify cost plus an SSTORE-equivalent write surcharge.
+	StateWitnessRestoreGas uint64 = 25000
+
+	// StateWitnessGetTierGas prices selector 0x03 (single index
+	// read). Cheap because it is one LevelDB lookup with no trie
+	// traversal.
+	StateWitnessGetTierGas uint64 = 1000
+
+	// MaxStateWitnessProofBytes caps the proof payload accepted by
+	// 0x2F. Typical storage proofs at depth 8 with 532-byte branch
+	// nodes are ~4 KiB. 16 KiB leaves headroom while preventing
+	// gigabyte-sized "proofs" that would exhaust RAM.
+	MaxStateWitnessProofBytes uint64 = 16384
+
+	// ============================================================
+	// NIP-0004 — Layered Deterministic Computer
+	// Phase 7: Session / Channel Primitive
+	//
+	// Adds the Session Protocol Object and novaSessionArbiter (0x2D).
+	// Sessions are bilateral off-chain state channels with deterministic
+	// on-chain checkpoint, close, dispute, and timeout resolution.
+	//
+	// On mainnet: block 853,400 for the coordinated activation rollout.
+	// ============================================================
+
+	// SessionForkBlock activates the 0x2D novaSessionArbiter precompile and
+	// the Phase 0 timeout sweep for due session objects.
+	SessionForkBlock uint64 = 853400
+
+	// SessionMinTimeoutBlocks prevents same-block timeouts that would make
+	// open/commit behavior ambiguous inside a single block.
+	SessionMinTimeoutBlocks uint64 = 1
+
+	// SessionMaxTimeoutBlocks bounds timeout index growth while still
+	// leaving enough room for long-running channel sessions.
+	SessionMaxTimeoutBlocks uint64 = 1000000
+
+	// SessionDisputeGraceBlocks is added when a valid disputed checkpoint is
+	// posted. The highest valid sequence can still win until this deadline.
+	SessionDisputeGraceBlocks uint64 = 20
+
+	// MaxSessionTimeoutsPerBlock bounds Phase 0 session timeout work.
+	MaxSessionTimeoutsPerBlock uint64 = 512
+
+	// MaxSessionStateBytes caps the RLP body stored in ProtocolObject.StateData.
+	MaxSessionStateBytes uint64 = 512
+
+	// MaxSessionSignatures caps commit/close/dispute signature tails.
+	MaxSessionSignatures uint64 = 2
+
+	// ============================================================
+	// NIP-0004 — Layered Deterministic Computer
+	// Phase 11: Application-Layer Precompiles
+	//
+	// Adds application-level helpers for async callbacks, identity
+	// attestations, social graph edges, content manifests, game state, and
+	// compute bounties. The address map avoids the old draft's 0x2B/0x2C
+	// collisions by using 0x30-0x34 and 0x36; 0x35 remains MailboxOps.
+	// ============================================================
+
+	ApplicationPrecompileForkBlock uint64 = 853400
+
+	// ============================================================
+	// NIP-0004 — Layered Deterministic Computer
+	// Phase 12: Nova Opcodes
+	//
+	// Activates the 0xD0-0xD8 opcode bridge that promotes mailbox,
+	// content-reference, and session operations from precompile calls to a
+	// compact VM surface. The old 0xF6-0xFE draft range is intentionally
+	// avoided because that collides with canonical EVM opcodes.
+	// ============================================================
+
+	NovaOpcodeForkBlock uint64 = 853400
+
+	// ============================================================
+	// NIP-0004 — Layered Deterministic Computer
+	// Phase 10D: Multi-Dimensional Resource Metering (consensus enforcement)
+	//
+	// CONSENSUS-CRITICAL. Activates the full Phase 10 surface:
+	//   - Per-dimension resource limits enforced during state transition
+	//     for legacy and typed transactions. Legacy tx limits default to
+	//     ResourceVector{compute=gasLimit, state_read=gasLimit,
+	//     state_write=gasLimit, protocol_ops=gasLimit,
+	//     proof_verify=gasLimit} so that any tx that succeeded before
+	//     the fork also succeeds after the fork.
+	//   - New ResourceTx type (0x05) that carries an explicit
+	//     ResourceLimits vector. The Transaction decoder accepts type 0x05
+	//     unconditionally after this block.
+	//   - Header.ResourceUsed (5*uint64) is the SUM of all included tx
+	//     resource vectors. It is rlp:"optional" so headers before the
+	//     fork remain decodable; after the fork it MUST be present and
+	//     MUST equal the recomputed sum.
+	//   - Header.ResourceBasePrice (5*uint64 basis points) is the active
+	//     per-dimension base price for the block. After the fork it is a
+	//     pure deterministic function of (parentBasePrice, parentUsage,
+	//     parentBlockGasLimit) via consensus/misc.CalcNextResourcePrice.
+	//   - Pricer snapshot becomes derived from the canonical chain head
+	//     (no global mutable state on the consensus path). RPC quotes
+	//     remain backwards compatible: nova_resourcePrices /
+	//     nova_resourceCongestion / nova_quoteResourceFee now read from
+	//     the head block instead of the in-process pricer singleton.
+	//
+	// Backward compatibility commitments:
+	//   - Legacy tx (type 0x00/0x01/0x02) signing/hash UNCHANGED. ethers.js,
+	//     MetaMask, and existing dApps continue to work without changes.
+	//   - eth_estimateGas / eth_gasPrice / eth_feeHistory UNCHANGED. The
+	//     gas-fee accounting path (gasUsed * effectiveGasPrice) is
+	//     UNCHANGED for legacy tx. Resource metering becomes an additional
+	//     consensus check, not a fee replacement.
+	//   - Block header fields after Number/Time are append-only via
+	//     rlp:"optional" — older serializers ignoring the new tail keep
+	//     working but cannot validate Phase 10D headers.
+	//
+	// Activation policy:
+	//   - Mainnet: block 853,400. Historical mainnet blocks before this
+	//     block do not contain resource header fields, so activation must
+	//     remain a future hard fork and never block 0.
+	ResourceMeteringForkBlock uint64 = 853400
+
+	// ResourceMeteringTransitionGracePostFork is the minimum number of
+	// blocks between ResourceMeteringForkBlock and the strict mode that
+	// rejects a transaction for breaching a per-dimension limit. Inside
+	// the grace window per-dim usage is computed, recorded into the
+	// header, and validated, but ErrOutOfResource_* is NOT raised — the
+	// tx still succeeds or fails on classic gas. This lets a freshly
+	// upgraded fleet observe real usage before flipping the kill switch.
+	// Set to 0 for a hard activation (devnet default).
+	ResourceMeteringTransitionGracePostFork uint64 = 0
 )

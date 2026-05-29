@@ -55,6 +55,7 @@ type Contract struct {
 	CodeHash common.Hash
 	CodeAddr *common.Address
 	Input    []byte
+	Domain   ExecutionDomain
 
 	Gas   uint64
 	value *uint256.Int
@@ -181,6 +182,23 @@ func (c *Contract) SetCallCode(addr *common.Address, hash common.Hash, code []by
 	c.Code = code
 	c.CodeHash = hash
 	c.CodeAddr = addr
+	c.Domain = DomainLegacy
+}
+
+// SetCallCodeWithDomain sets contract code and, when the domain fork is active,
+// strips the EF01/EF02 metadata prefix before interpreter execution. Pre-fork
+// callers must pass domainActive=false so historical EF-prefixed bytecode keeps
+// legacy EVM behavior.
+func (c *Contract) SetCallCodeWithDomain(addr *common.Address, hash common.Hash, code []byte, domainActive bool) {
+	if !domainActive {
+		c.SetCallCode(addr, hash, code)
+		return
+	}
+	domain, runtime := parseExecutionDomain(code)
+	c.Code = runtime
+	c.CodeHash = hash
+	c.CodeAddr = addr
+	c.Domain = domain
 }
 
 // SetCodeOptionalHash can be used to provide code, but it's optional to provide hash.

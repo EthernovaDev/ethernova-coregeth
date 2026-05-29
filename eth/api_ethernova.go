@@ -1,10 +1,14 @@
 package eth
 
 import (
+	"math/big"
 	"runtime"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
@@ -36,6 +40,8 @@ func (api *EthernovaAPI) ForkStatus() map[string]interface{} {
 		forkEntry("EIP-658 (Receipt Status)", ethernova.EIP658ForkBlock, head),
 		forkEntry("MegaFork (Historical EVM)", ethernova.MegaForkBlock, head),
 		forkEntry("Legacy Chain Enforcement", ethernova.LegacyForkEnforcementBlock, head),
+		forkEntry("NIP-0004 Protocol Objects", ethernova.ProtocolObjectForkBlock, head),
+		forkEntry("NIP-0004 Deferred Execution", ethernova.DeferredExecForkBlock, head),
 	}
 
 	// Check config status from DB
@@ -88,16 +94,16 @@ func (api *EthernovaAPI) ChainConfig() ChainConfigResult {
 }
 
 type NodeHealthResult struct {
-	Version       string  `json:"version"`
-	Network       string  `json:"network"`
-	CurrentBlock  uint64  `json:"currentBlock"`
-	HighestBlock  uint64  `json:"highestBlock"`
-	PeerCount     int     `json:"peerCount"`
-	Syncing       bool    `json:"syncing"`
-	SyncProgress  float64 `json:"syncProgress"`
-	UptimeSeconds int64   `json:"uptimeSeconds"`
-	MemoryMB      uint64  `json:"memoryMB"`
-	DualSignerFallbacks int64 `json:"dualSignerFallbacks"`
+	Version             string  `json:"version"`
+	Network             string  `json:"network"`
+	CurrentBlock        uint64  `json:"currentBlock"`
+	HighestBlock        uint64  `json:"highestBlock"`
+	PeerCount           int     `json:"peerCount"`
+	Syncing             bool    `json:"syncing"`
+	SyncProgress        float64 `json:"syncProgress"`
+	UptimeSeconds       int64   `json:"uptimeSeconds"`
+	MemoryMB            uint64  `json:"memoryMB"`
+	DualSignerFallbacks int64   `json:"dualSignerFallbacks"`
 }
 
 func (api *EthernovaAPI) NodeHealth() NodeHealthResult {
@@ -144,11 +150,11 @@ func (api *EthernovaAPI) NodeHealth() NodeHealthResult {
 
 // EvmProfileResult holds the EVM opcode profiling snapshot.
 type EvmProfileResult struct {
-	Enabled       bool              `json:"enabled"`
-	TotalOps      uint64            `json:"totalOps"`
-	TotalGas      uint64            `json:"totalGas"`
-	TopOpcodes    []vm.OpcodeStats  `json:"topOpcodes"`
-	TopContracts  []vm.ContractStats `json:"topContracts"`
+	Enabled      bool               `json:"enabled"`
+	TotalOps     uint64             `json:"totalOps"`
+	TotalGas     uint64             `json:"totalGas"`
+	TopOpcodes   []vm.OpcodeStats   `json:"topOpcodes"`
+	TopContracts []vm.ContractStats `json:"topContracts"`
 }
 
 // EvmProfile returns EVM opcode execution profiling data.
@@ -186,12 +192,12 @@ func (api *EthernovaAPI) EvmProfileToggle(enabled bool) bool {
 
 // AdaptiveGasResult holds the adaptive gas system status.
 type AdaptiveGasResult struct {
-	Enabled         bool                `json:"enabled"`
-	Version         string              `json:"version"`
-	ForkBlock       uint64              `json:"forkBlock"`
-	DiscountPercent uint64              `json:"maxDiscountPercent"`
-	PenaltyPercent  uint64              `json:"maxPenaltyPercent"`
-	Contracts       []vm.PatternStats   `json:"contracts"`
+	Enabled         bool              `json:"enabled"`
+	Version         string            `json:"version"`
+	ForkBlock       uint64            `json:"forkBlock"`
+	DiscountPercent uint64            `json:"maxDiscountPercent"`
+	PenaltyPercent  uint64            `json:"maxPenaltyPercent"`
+	Contracts       []vm.PatternStats `json:"contracts"`
 }
 
 // AdaptiveGas returns the current adaptive gas configuration and contract patterns.
@@ -249,15 +255,15 @@ func (api *EthernovaAPI) AdaptiveGasReset() bool {
 
 // AdaptiveGasV2Result holds the trace-based adaptive gas system status.
 type AdaptiveGasV2Result struct {
-	Enabled         bool                       `json:"enabled"`
-	ConsensusRule   bool                       `json:"consensusRule"`
-	Version         string                     `json:"version"`
-	ForkBlock       uint64                     `json:"forkBlock"`
-	DiscountPercent uint64                     `json:"maxDiscountPercent"`
-	PenaltyPercent  uint64                     `json:"maxPenaltyPercent"`
-	LastTx          *vm.AdaptiveGasV2Stats     `json:"lastTxClassification,omitempty"`
-	LegacyContracts []vm.PatternStats          `json:"legacyContracts,omitempty"`
-	StaticClasses   []vm.ClassificationStats   `json:"staticClassifications,omitempty"`
+	Enabled         bool                     `json:"enabled"`
+	ConsensusRule   bool                     `json:"consensusRule"`
+	Version         string                   `json:"version"`
+	ForkBlock       uint64                   `json:"forkBlock"`
+	DiscountPercent uint64                   `json:"maxDiscountPercent"`
+	PenaltyPercent  uint64                   `json:"maxPenaltyPercent"`
+	LastTx          *vm.AdaptiveGasV2Stats   `json:"lastTxClassification,omitempty"`
+	LegacyContracts []vm.PatternStats        `json:"legacyContracts,omitempty"`
+	StaticClasses   []vm.ClassificationStats `json:"staticClassifications,omitempty"`
 }
 
 // AdaptiveGasV2 returns the v2 trace-based adaptive gas system status.
@@ -320,9 +326,9 @@ func (api *EthernovaAPI) AdaptiveGasV2Simulate(
 
 // ExecutionModeResult holds execution mode status.
 type ExecutionModeResult struct {
-	Mode            string              `json:"mode"`
-	FastExecutions  uint64              `json:"fastExecutions"`
-	SkippedChecks   uint64              `json:"skippedChecks"`
+	Mode              string             `json:"mode"`
+	FastExecutions    uint64             `json:"fastExecutions"`
+	SkippedChecks     uint64             `json:"skippedChecks"`
 	VerifiedContracts []vm.VerifiedStats `json:"verifiedContracts"`
 }
 
@@ -386,15 +392,21 @@ func (api *EthernovaAPI) OptimizerReset() bool {
 	return true
 }
 
-// AutoTuner returns the auto-tuner status.
-func (api *EthernovaAPI) AutoTuner() vm.AutoTunerStats {
-	return vm.GlobalAutoTuner.Stats()
+// AutoTuner returns the convergent auto-tuner status.
+// Ethernova v3.0: Includes both convergent tuner EMA metrics and
+// safety envelope status (scaleFactor, cautious mode, etc.).
+func (api *EthernovaAPI) AutoTuner() map[string]interface{} {
+	return map[string]interface{}{
+		"convergent": vm.GlobalConvergentTuner.Stats(),
+		"safety":     vm.GlobalSafeTuner.Stats(),
+	}
 }
 
-// AutoTunerToggle enables or disables auto-tuning.
+// AutoTunerToggle enables or disables the convergent auto-tuner.
 func (api *EthernovaAPI) AutoTunerToggle(enabled bool) bool {
-	vm.GlobalAutoTuner.SetEnabled(enabled)
-	return vm.GlobalAutoTuner.IsEnabled()
+	vm.GlobalConvergentTuner.SetEnabled(enabled)
+	vm.GlobalSafeTuner.SetEnabled(enabled)
+	return vm.GlobalConvergentTuner.IsEnabled()
 }
 
 // PrecompileInfo describes a custom Ethernova precompiled contract.
@@ -462,6 +474,84 @@ func (api *EthernovaAPI) Precompiles() []PrecompileInfo {
 			Description: "Protocol-level price oracle with TWAP and 15% circuit breaker",
 			GasModel:    "2k read, 5k TWAP, 50k submit",
 		},
+		{
+			Address:     "0x0000000000000000000000000000000000000029",
+			Name:        "novaProtocolObjectRegistry",
+			Description: "NIP-0004 Protocol Object CRUD: create, read, list, delete first-class protocol entities (Mailbox, Session, ContentRef, Identity, Subscription, GameRoom)",
+			GasModel:    "20k create, 2k read, 1k count, 10k delete",
+		},
+		{
+			Address:     "0x000000000000000000000000000000000000002A",
+			Name:        "novaDeferredQueue",
+			Description: "NIP-0004 Phase 2 Pending Effects Queue: enqueue deferred effect, query pending, read queue stats. Effects enqueued in block N are drained at the start of block N+1.",
+			GasModel:    "10k enqueue base + 200/chunk, 2k read, 1k stats",
+		},
+		{
+			Address:     "0x000000000000000000000000000000000000002B",
+			Name:        "novaContentRegistry",
+			Description: "NIP-0004 Phase 3 Content Reference primitive: register / lookup / list off-chain content references with rent-backed expiry.",
+			GasModel:    "10k base + 200/chunk create, 2k read, 1k isValid/list/count",
+		},
+		{
+			Address:     "0x000000000000000000000000000000000000002C",
+			Name:        "novaMailboxManager",
+			Description: "NIP-0004 Phase 4 Mailbox lifecycle: create / configure / destroy / getConfig.",
+			GasModel:    "30k+500/ACL create, 20k+500/ACL configure, 15k destroy, 2k getConfig",
+		},
+		{
+			Address:     "0x000000000000000000000000000000000000002D",
+			Name:        "novaSessionArbiter",
+			Description: "NIP-0004 Phase 7 Session/Channel primitive: open, commit, close, dispute, timeout resolution.",
+			GasModel:    "2k-50k by selector and signature tail",
+		},
+		{
+			Address:     "0x000000000000000000000000000000000000002F",
+			Name:        "novaStateWitness",
+			Description: "NIP-0004 Phase 5 State Lifecycle witness verification and restoration helper.",
+			GasModel:    "1k getTier, 5k verify, 25k restore",
+		},
+		{
+			Address:     "0x0000000000000000000000000000000000000030",
+			Name:        "novaAsyncCallback",
+			Description: "NIP-0004 Phase 11 app primitive: deterministic callback commitments and readiness checks.",
+			GasModel:    "18k writes, 2k-4k reads/verifies",
+		},
+		{
+			Address:     "0x0000000000000000000000000000000000000031",
+			Name:        "novaIdentityAttestation",
+			Description: "NIP-0004 Phase 11 app primitive: issuer-owned subject/claim attestations with expiry and revoke.",
+			GasModel:    "18k writes, 2k-4k reads/verifies",
+		},
+		{
+			Address:     "0x0000000000000000000000000000000000000032",
+			Name:        "novaSocialGraph",
+			Description: "NIP-0004 Phase 11 app primitive: follow/unfollow edges, isFollowing, trustScore.",
+			GasModel:    "18k writes, 2k-4k reads/verifies",
+		},
+		{
+			Address:     "0x0000000000000000000000000000000000000033",
+			Name:        "novaContentManifest",
+			Description: "NIP-0004 Phase 11 app primitive: manifest root hashes that compose with ContentRef IDs.",
+			GasModel:    "18k writes, 2k-4k reads/verifies",
+		},
+		{
+			Address:     "0x0000000000000000000000000000000000000034",
+			Name:        "novaGameState",
+			Description: "NIP-0004 Phase 11 app primitive: turn-ordered commit/reveal game state checkpoints.",
+			GasModel:    "18k writes, 2k-4k reads/verifies",
+		},
+		{
+			Address:     "0x0000000000000000000000000000000000000035",
+			Name:        "novaMailboxOps",
+			Description: "NIP-0004 Phase 4 Mailbox messaging: send (deferred to next block), recv, peek, count. Postage in NOVA enforced.",
+			GasModel:    "30k send, 15k recv, 2k peek, 500 count",
+		},
+		{
+			Address:     "0x0000000000000000000000000000000000000036",
+			Name:        "novaComputeBounty",
+			Description: "NIP-0004 Phase 11 app primitive: off-chain compute bounty commitments and proof submissions.",
+			GasModel:    "18k writes, 2k-4k reads/verifies",
+		},
 	}
 }
 
@@ -490,4 +580,855 @@ func (api *EthernovaAPI) StateExpiry() map[string]interface{} {
 		"appliesTo":    "contracts only (EOAs never expire)",
 		"description":  "Blockchain garbage collector - archives dead contracts after inactivity period",
 	}
+}
+
+// ============================================================
+// NIP-0004 Phase 5: State Lifecycle Tiers RPC surface
+// ============================================================
+
+// lifecycleEngine constructs a fresh engine wired to ChainDb. The
+// engine has no in-memory mutable state so building it on every RPC
+// call is fine — the cost is a struct allocation.
+func (api *EthernovaAPI) lifecycleEngine() *state.StateLifecycleEngine {
+	cfg := state.LifecycleConfig{
+		Thresholds: state.LifecycleThresholds{
+			ActiveBlocks: ethernova.ActiveTierBlocks,
+			WarmBlocks:   ethernova.WarmTierBlocks,
+			ColdBlocks:   ethernova.ColdTierBlocks,
+		},
+		Fees: state.LifecycleFees{
+			PerByte: ethernova.WarmingFeePerByte,
+		},
+		MaxSweepPerBlock: ethernova.MaxLifecycleSweepPerBlock,
+	}
+	return state.NewStateLifecycleEngine(api.e.ChainDb(), cfg)
+}
+
+// StateLifecycleConfig surfaces the Phase 5 thresholds and fees.
+func (api *EthernovaAPI) StateLifecycleConfig() map[string]interface{} {
+	return map[string]interface{}{
+		"forkBlock":               ethernova.StateLifecycleForkBlock,
+		"sloadSurchargeForkBlock": ethernova.LifecycleSloadSurchargeForkBlock,
+		"activeTierBlocks":        ethernova.ActiveTierBlocks,
+		"warmTierBlocks":          ethernova.WarmTierBlocks,
+		"coldTierBlocks":          ethernova.ColdTierBlocks,
+		"warmingFeePerByte":       ethernova.WarmingFeePerByte,
+		"maxSweepPerBlock":        ethernova.MaxLifecycleSweepPerBlock,
+		"slotSize":                ethernova.LifecycleStorageSlotSize,
+		"maxWitnessProofBytes":    ethernova.MaxStateWitnessProofBytes,
+		"witnessVerifyGas":        ethernova.StateWitnessVerifyGas,
+		"witnessRestoreGas":       ethernova.StateWitnessRestoreGas,
+		"witnessGetTierGas":       ethernova.StateWitnessGetTierGas,
+		"description":             "NIP-0004 Phase 5: 5-tier state lifecycle (Active/Warm/Cold/Archived/Expired)",
+	}
+}
+
+// GetStateTier returns the current tier of an account (read-only).
+// slot is accepted but ignored for Phase 5 v1 — tiers are
+// per-account, not per-slot. The slot parameter is reserved for
+// Phase 5D where slot-level tiers are introduced.
+func (api *EthernovaAPI) GetStateTier(addr common.Address, slot common.Hash) map[string]interface{} {
+	engine := api.lifecycleEngine()
+	currentBlock := api.e.blockchain.CurrentBlock().Number.Uint64()
+	tier := engine.TierOf(addr, currentBlock)
+	lastTouched := engine.LastTouched(addr)
+	var age uint64
+	if lastTouched != 0 && currentBlock >= lastTouched {
+		age = currentBlock - lastTouched
+	}
+	return map[string]interface{}{
+		"address":      addr,
+		"slot":         slot,
+		"tier":         tier.String(),
+		"tierCode":     uint8(tier),
+		"lastTouched":  lastTouched,
+		"currentBlock": currentBlock,
+		"ageBlocks":    age,
+		"isArchived":   engine.IsArchived(addr),
+	}
+}
+
+// StateWitnessResult is what GetStateWitness returns. The "proof"
+// field is the precompile-format payload (count + per-node length-
+// prefixed RLP) hex-encoded.
+type StateWitnessResult struct {
+	Address     common.Address `json:"address"`
+	Slot        common.Hash    `json:"slot"`
+	Value       common.Hash    `json:"value"`
+	StorageRoot common.Hash    `json:"storageRoot"`
+	ColdRoot    common.Hash    `json:"coldRoot"`
+	ProofHex    string         `json:"proof"`
+	NodeCount   int            `json:"nodeCount"`
+}
+
+// GetStateWitness generates a Merkle proof suitable for submission
+// to precompile 0x2F selector 0x02 (restoreState). The proof is
+// built against the LIVE storage trie at head — for an Archived
+// account that storage root must equal the cold root recorded at
+// archival time, otherwise the witness will not verify on-chain.
+// Archive nodes that retain the original trie produce verifiable
+// proofs; pruned nodes will produce proofs against an empty trie
+// which the precompile will reject.
+func (api *EthernovaAPI) GetStateWitness(addr common.Address, slot common.Hash) (*StateWitnessResult, error) {
+	statedb, err := api.getStateDB()
+	if err != nil {
+		return nil, err
+	}
+	engine := api.lifecycleEngine()
+	storageRoot := statedb.GetStorageRoot(addr)
+	coldRoot := engine.ColdStorageRoot(addr)
+	value := statedb.GetState(addr, slot)
+
+	// Use the existing eth_getProof machinery to build a Merkle
+	// proof, then encode it in the precompile's payload format.
+	headRoot := api.e.blockchain.CurrentBlock().Root
+	proofNodes, err := generateStorageProof(statedb, headRoot, addr, slot)
+	if err != nil {
+		return nil, err
+	}
+	payload := state.EncodeProofPayload(proofNodes)
+
+	return &StateWitnessResult{
+		Address:     addr,
+		Slot:        slot,
+		Value:       value,
+		StorageRoot: storageRoot,
+		ColdRoot:    coldRoot,
+		ProofHex:    "0x" + commonBytes2Hex(payload),
+		NodeCount:   len(proofNodes),
+	}, nil
+}
+
+// GetWarmStateRoot returns the rolling Warm State Commitment Root
+// the lifecycle engine has accumulated. Two nodes that have observed
+// the same demotion sequence should report the same value.
+func (api *EthernovaAPI) GetWarmStateRoot() map[string]interface{} {
+	engine := api.lifecycleEngine()
+	root := engine.WarmStateRoot()
+	return map[string]interface{}{
+		"warmStateRoot": root,
+		"description":   "rolling keccak256 chain over (prev || addr || demotionBlock) for every demotion",
+	}
+}
+
+// ============================================================
+// NIP-0004 Protocol Object RPC endpoints
+// ============================================================
+
+// getStateDB returns a statedb at the current head for read-only queries.
+func (api *EthernovaAPI) getStateDB() (*state.StateDB, error) {
+	header := api.e.blockchain.CurrentBlock()
+	return api.e.blockchain.StateAt(header.Root)
+}
+
+// ProtocolObjectResult is the JSON-serializable representation of a Protocol Object.
+type ProtocolObjectResult struct {
+	ID               common.Hash    `json:"id"`
+	Owner            common.Address `json:"owner"`
+	TypeTag          uint8          `json:"typeTag"`
+	TypeName         string         `json:"typeName"`
+	StateDataHex     string         `json:"stateData"`
+	StateDataLen     int            `json:"stateDataLen"`
+	ExpiryBlock      uint64         `json:"expiryBlock"`
+	LastTouchedBlock uint64         `json:"lastTouchedBlock"`
+	RentBalance      string         `json:"rentBalance"`
+}
+
+func protocolObjectToResult(obj *types.ProtocolObject) *ProtocolObjectResult {
+	rentStr := "0"
+	if obj.RentBalance != nil {
+		rentStr = obj.RentBalance.String()
+	}
+	return &ProtocolObjectResult{
+		ID:               obj.ID,
+		Owner:            obj.Owner,
+		TypeTag:          obj.TypeTag,
+		TypeName:         types.ProtocolObjectTypeName(obj.TypeTag),
+		StateDataHex:     common.Bytes2Hex(obj.StateData),
+		StateDataLen:     len(obj.StateData),
+		ExpiryBlock:      obj.ExpiryBlock,
+		LastTouchedBlock: obj.LastTouchedBlock,
+		RentBalance:      rentStr,
+	}
+}
+
+// GetProtocolObject returns a Protocol Object by its ID (hex string).
+// Returns null if not found. This is a read-only query against the current head state.
+func (api *EthernovaAPI) GetProtocolObject(idHex string) (interface{}, error) {
+	statedb, err := api.getStateDB()
+	if err != nil {
+		return nil, err
+	}
+	id := common.HexToHash(idHex)
+	obj := vm.PoGetObject(statedb, id)
+	if obj == nil {
+		return nil, nil
+	}
+	return protocolObjectToResult(obj), nil
+}
+
+// GetProtocolObjectTier returns the Phase 5 lifecycle tier for a Protocol
+// Object. The external Phase 5C index is preferred; for pre-Phase-5C objects
+// that have not been touched since this release, the Protocol Object body's
+// LastTouchedBlock is used as a read-only compatibility fallback.
+func (api *EthernovaAPI) GetProtocolObjectTier(idHex string) (map[string]interface{}, error) {
+	statedb, err := api.getStateDB()
+	if err != nil {
+		return nil, err
+	}
+	id := common.HexToHash(idHex)
+	obj := vm.PoGetObject(statedb, id)
+	engine := api.lifecycleEngine()
+	currentBlock := api.e.blockchain.CurrentBlock().Number.Uint64()
+
+	lastTouched := engine.LastTouchedObject(id)
+	source := "lifecycle-index"
+	exists := obj != nil
+	var bodyLastTouched uint64
+	var typeTag uint8
+	typeName := "Unknown"
+	var owner common.Address
+	if obj != nil {
+		bodyLastTouched = obj.LastTouchedBlock
+		typeTag = obj.TypeTag
+		typeName = types.ProtocolObjectTypeName(obj.TypeTag)
+		owner = obj.Owner
+		if lastTouched == 0 || bodyLastTouched > lastTouched {
+			lastTouched = bodyLastTouched
+			source = "protocol-object-body"
+		}
+	}
+
+	tier := engine.TierOfObject(id, currentBlock)
+	if source == "protocol-object-body" {
+		tier = state.ComputeTier(lastTouched, currentBlock, state.LifecycleThresholds{
+			ActiveBlocks: ethernova.ActiveTierBlocks,
+			WarmBlocks:   ethernova.WarmTierBlocks,
+			ColdBlocks:   ethernova.ColdTierBlocks,
+		})
+	}
+	var age uint64
+	if lastTouched != 0 && currentBlock >= lastTouched {
+		age = currentBlock - lastTouched
+	}
+	return map[string]interface{}{
+		"id":                    id,
+		"exists":                exists,
+		"owner":                 owner,
+		"typeTag":               typeTag,
+		"typeName":              typeName,
+		"tier":                  tier.String(),
+		"tierCode":              uint8(tier),
+		"lastTouched":           lastTouched,
+		"bodyLastTouched":       bodyLastTouched,
+		"indexedLastTouched":    engine.LastTouchedObject(id),
+		"lastTouchedSource":     source,
+		"currentBlock":          currentBlock,
+		"ageBlocks":             age,
+		"phase5cIndexAvailable": engine.LastTouchedObject(id) != 0,
+	}, nil
+}
+
+// GetProtocolObjectCount returns the total number of Protocol Objects.
+func (api *EthernovaAPI) GetProtocolObjectCount() (map[string]interface{}, error) {
+	statedb, err := api.getStateDB()
+	if err != nil {
+		return nil, err
+	}
+	total := vm.PoGetObjectCount(statedb)
+
+	perType := make(map[string]uint64)
+	for tag := uint8(1); tag <= 6; tag++ {
+		name := types.ProtocolObjectTypeName(tag)
+		count := vm.PoGetTypeCount(statedb, tag)
+		perType[name] = count
+	}
+
+	return map[string]interface{}{
+		"total":           total,
+		"perType":         perType,
+		"registryAddress": vm.ProtocolObjectRegistryAddr.Hex(),
+		"forkBlock":       ethernova.ProtocolObjectForkBlock,
+	}, nil
+}
+
+// GetProtocolObjectsByOwner returns Protocol Object IDs owned by an address.
+func (api *EthernovaAPI) GetProtocolObjectsByOwner(ownerHex string, offset, limit uint64) (interface{}, error) {
+	statedb, err := api.getStateDB()
+	if err != nil {
+		return nil, err
+	}
+	if limit == 0 || limit > 100 {
+		limit = 100
+	}
+	owner := common.HexToAddress(ownerHex)
+	ids := vm.PoGetObjectsByOwner(statedb, owner, offset, limit)
+
+	results := make([]string, len(ids))
+	for i, id := range ids {
+		results[i] = id.Hex()
+	}
+	return map[string]interface{}{
+		"owner":  owner.Hex(),
+		"count":  len(results),
+		"offset": offset,
+		"limit":  limit,
+		"ids":    results,
+	}, nil
+}
+
+// ProtocolObjectConfig returns the NIP-0004 Protocol Object configuration.
+func (api *EthernovaAPI) ProtocolObjectConfig() map[string]interface{} {
+	head := api.e.blockchain.CurrentBlock().Number.Uint64()
+	active := head >= ethernova.ProtocolObjectForkBlock
+
+	return map[string]interface{}{
+		"forkBlock":       ethernova.ProtocolObjectForkBlock,
+		"active":          active,
+		"currentBlock":    head,
+		"registryAddress": vm.ProtocolObjectRegistryAddr.Hex(),
+		"precompile":      "0x29",
+		"maxTypes":        types.MaxProtocolObjectTypes,
+		"supportedTypes": []map[string]interface{}{
+			{"tag": types.ProtoTypeMailbox, "name": "Mailbox"},
+			{"tag": types.ProtoTypeSession, "name": "Session"},
+			{"tag": types.ProtoTypeContentReference, "name": "ContentReference"},
+			{"tag": types.ProtoTypeIdentity, "name": "Identity"},
+			{"tag": types.ProtoTypeSubscription, "name": "Subscription"},
+			{"tag": types.ProtoTypeGameRoom, "name": "GameRoom"},
+		},
+		"description": "NIP-0004 Phase 1: Protocol Object Trie Foundation — first-class entities in the Ethernova state tree",
+	}
+}
+
+// ============================================================
+// NIP-0004 Phase 2: Deferred Execution Engine RPC endpoints
+// ============================================================
+
+// DeferredEffectResult is the JSON representation of a DeferredEffect.
+type DeferredEffectResult struct {
+	SeqNum       uint64         `json:"seqNum"`
+	EffectType   uint8          `json:"effectType"`
+	EffectName   string         `json:"effectName"`
+	SourceBlock  uint64         `json:"sourceBlock"`
+	SourceCaller common.Address `json:"sourceCaller"`
+	SourceTxHash common.Hash    `json:"sourceTxHash"`
+	PayloadHex   string         `json:"payload"`
+	PayloadLen   int            `json:"payloadLen"`
+}
+
+func deferredEffectToResult(e *types.DeferredEffect) *DeferredEffectResult {
+	return &DeferredEffectResult{
+		SeqNum:       e.SeqNum,
+		EffectType:   e.EffectType,
+		EffectName:   types.DeferredEffectTypeName(e.EffectType),
+		SourceBlock:  e.SourceBlock,
+		SourceCaller: e.SourceCaller,
+		SourceTxHash: e.SourceTxHash,
+		PayloadHex:   common.Bytes2Hex(e.Payload),
+		PayloadLen:   len(e.Payload),
+	}
+}
+
+// GetPendingEffects returns up to `limit` pending effects starting at
+// `offset` past the current queue head. Useful for inspecting what Phase 0
+// will process at the next block. Limit is hard-capped at 256 to avoid
+// runaway RPC responses; use paginated calls for larger surveys.
+func (api *EthernovaAPI) GetPendingEffects(offset, limit uint64) (interface{}, error) {
+	statedb, err := api.getStateDB()
+	if err != nil {
+		return nil, err
+	}
+	if limit == 0 {
+		limit = 50
+	}
+	effects := vm.DqListPending(statedb, offset, limit)
+	results := make([]*DeferredEffectResult, len(effects))
+	for i, e := range effects {
+		results[i] = deferredEffectToResult(e)
+	}
+	head := vm.DqGetHead(statedb)
+	tail := vm.DqGetTail(statedb)
+	return map[string]interface{}{
+		"head":     head,
+		"tail":     tail,
+		"pending":  vm.DqGetPendingCount(statedb),
+		"offset":   offset,
+		"limit":    limit,
+		"returned": len(results),
+		"effects":  results,
+	}, nil
+}
+
+// GetPendingEffect returns a single DeferredEffect by its sequence number,
+// or null if the entry is absent (never existed or already drained).
+func (api *EthernovaAPI) GetPendingEffect(seq uint64) (interface{}, error) {
+	statedb, err := api.getStateDB()
+	if err != nil {
+		return nil, err
+	}
+	e := vm.DqGetEntry(statedb, seq)
+	if e == nil {
+		return nil, nil
+	}
+	return deferredEffectToResult(e), nil
+}
+
+// DeferredProcessingStats returns queue-level counters at the current head
+// state. This is the debugging endpoint hinted at by the NIP-0004
+// implementation plan (§11 of Phase 2) as
+// `nova_getDeferredProcessingStats(blockNumber)` — we expose the current
+// head state; historical per-block stats can be reconstructed from logs.
+func (api *EthernovaAPI) DeferredProcessingStats() (map[string]interface{}, error) {
+	statedb, err := api.getStateDB()
+	if err != nil {
+		return nil, err
+	}
+	head := api.e.blockchain.CurrentBlock().Number.Uint64()
+	return map[string]interface{}{
+		"currentBlock":        head,
+		"queueHead":           vm.DqGetHead(statedb),
+		"queueTail":           vm.DqGetTail(statedb),
+		"pendingCount":        vm.DqGetPendingCount(statedb),
+		"totalProcessed":      vm.DqGetTotalProcessed(statedb),
+		"enqueuesAtThisBlock": vm.DqGetEnqueueCountAtBlock(statedb, head),
+		"queueAddress":        vm.DeferredQueueAddr.Hex(),
+		"forkBlock":           ethernova.DeferredExecForkBlock,
+		"forkActive":          head >= ethernova.DeferredExecForkBlock,
+		"maxEnqueuePerBlock":  ethernova.MaxPendingEffectsPerBlock,
+		"maxDrainPerBlock":    ethernova.MaxDeferredProcessingPerBlock,
+		"maxPayloadBytes":     ethernova.MaxDeferredEffectPayloadBytes,
+	}, nil
+}
+
+// DeferredExecConfig returns the NIP-0004 Phase 2 configuration. Mirror of
+// ProtocolObjectConfig() but for the deferred engine.
+func (api *EthernovaAPI) DeferredExecConfig() map[string]interface{} {
+	head := api.e.blockchain.CurrentBlock().Number.Uint64()
+	active := head >= ethernova.DeferredExecForkBlock
+	return map[string]interface{}{
+		"forkBlock":          ethernova.DeferredExecForkBlock,
+		"active":             active,
+		"currentBlock":       head,
+		"queueAddress":       vm.DeferredQueueAddr.Hex(),
+		"precompile":         "0x2A",
+		"maxEnqueuePerBlock": ethernova.MaxPendingEffectsPerBlock,
+		"maxDrainPerBlock":   ethernova.MaxDeferredProcessingPerBlock,
+		"maxPayloadBytes":    ethernova.MaxDeferredEffectPayloadBytes,
+		"supportedEffectTypes": []map[string]interface{}{
+			{"tag": types.EffectTypeNoop, "name": "Noop", "active": true},
+			{"tag": types.EffectTypePing, "name": "Ping", "active": true},
+			{"tag": types.EffectTypeMailboxSend, "name": "MailboxSend", "active": false, "phase": 4},
+			{"tag": types.EffectTypeAsyncCallback, "name": "AsyncCallback", "active": false, "phase": 7},
+			{"tag": types.EffectTypeSessionUpdate, "name": "SessionUpdate", "active": false, "phase": 7},
+		},
+		"description": "NIP-0004 Phase 2: Deferred Execution Engine — pending effects queue + block-prologue drain",
+	}
+}
+
+// ============================================================
+// NIP-0004 Phase 3: Content Reference Primitive RPC endpoints
+//
+// Public methods (registered via the "ethernova" RPC namespace):
+//   - GetContentRef(idHex)                        -> ContentRefResult | null
+//   - ListContentRefs(ownerHex, offset, limit)    -> list wrapper
+//   - GetContentRefCount()                        -> counters
+//   - ContentRefConfig()                          -> spec metadata
+//
+// Canonical JSON-RPC names follow the same style used by the rest of
+// this API (see go-ethereum's standard lowercase-first-word mapping):
+//
+//   ethernova_getContentRef            -> GetContentRef
+//   ethernova_listContentRefs          -> ListContentRefs
+//   ethernova_getContentRefCount       -> GetContentRefCount
+//   ethernova_contentRefConfig         -> ContentRefConfig
+//
+// The "nova_*" aliases mentioned in the Phase 3 spec are mapped by the
+// admin layer that registers this API under the "nova" namespace too —
+// see node.RegisterAPIs; if only one namespace is exposed, prefer
+// "ethernova" which matches the service struct name.
+// ============================================================
+
+// ContentRefResult is the JSON-serializable representation of a ContentRef.
+type ContentRefResult struct {
+	ID                   common.Hash    `json:"id"`
+	Owner                common.Address `json:"owner"`
+	ContentHash          common.Hash    `json:"contentHash"`
+	Size                 uint64         `json:"size"`
+	ContentType          string         `json:"contentType"`
+	AvailabilityProofHex string         `json:"availabilityProof"`
+	ExpiryBlock          uint64         `json:"expiryBlock"`
+	LastTouchedBlock     uint64         `json:"lastTouchedBlock"`
+	RentBalanceStored    string         `json:"rentBalanceStored"`
+	RentBalanceEffective string         `json:"rentBalanceEffective"`
+	IsValid              bool           `json:"isValid"`
+	ExpiredReason        string         `json:"expiredReason,omitempty"`
+}
+
+func contentRefToResult(obj *types.ProtocolObject, currentBlock uint64) (*ContentRefResult, error) {
+	d, err := vm.DecodeContentRefStateData(obj.StateData)
+	if err != nil {
+		return nil, err
+	}
+	stored := "0"
+	if obj.RentBalance != nil {
+		stored = obj.RentBalance.String()
+	}
+	effBal := vm.CrEffectiveRentBalance(obj, currentBlock)
+	valid := true
+	reason := ""
+	if obj.ExpiryBlock != 0 && currentBlock > obj.ExpiryBlock {
+		valid = false
+		reason = "past_expiry_block"
+	}
+	nextEpoch := stateComputeEpochRentWei(d.Size)
+	if effBal.Cmp(nextEpoch) < 0 {
+		valid = false
+		if reason == "" {
+			reason = "rent_exhausted"
+		}
+	}
+	return &ContentRefResult{
+		ID:                   obj.ID,
+		Owner:                obj.Owner,
+		ContentHash:          d.ContentHash,
+		Size:                 d.Size,
+		ContentType:          string(d.ContentType),
+		AvailabilityProofHex: common.Bytes2Hex(d.AvailabilityProof),
+		ExpiryBlock:          obj.ExpiryBlock,
+		LastTouchedBlock:     obj.LastTouchedBlock,
+		RentBalanceStored:    stored,
+		RentBalanceEffective: effBal.String(),
+		IsValid:              valid,
+		ExpiredReason:        reason,
+	}, nil
+}
+
+// stateComputeEpochRentWei is a tiny wrapper so this file doesn't need
+// to import core/state at the top. Keeping the import surface narrow
+// avoids pulling rent-math into every file that imports eth.
+func stateComputeEpochRentWei(size uint64) *big.Int {
+	// Inline the math: rate * size * epochLength. Matches
+	// state.ComputeEpochRentWei exactly.
+	r := new(big.Int).SetUint64(ethernova.RentRatePerBytePerBlock)
+	s := new(big.Int).SetUint64(size)
+	e := new(big.Int).SetUint64(ethernova.RentEpochLength)
+	r.Mul(r, s)
+	r.Mul(r, e)
+	return r
+}
+
+// GetContentRef returns a ContentRef by ID hex string, or null if absent
+// or wrong type. Wire name: ethernova_getContentRef (also aliased as
+// nova_getContentRef when the namespace is registered).
+func (api *EthernovaAPI) GetContentRef(idHex string) (interface{}, error) {
+	statedb, err := api.getStateDB()
+	if err != nil {
+		return nil, err
+	}
+	id := common.HexToHash(idHex)
+	obj := vm.CrGetContentRef(statedb, id)
+	if obj == nil {
+		return nil, nil
+	}
+	head := api.e.blockchain.CurrentBlock().Number.Uint64()
+	return contentRefToResult(obj, head)
+}
+
+// ListContentRefs returns ContentRefs owned by an address, paginated.
+// Wire name: ethernova_listContentRefs.
+func (api *EthernovaAPI) ListContentRefs(ownerHex string, offset, limit uint64) (interface{}, error) {
+	statedb, err := api.getStateDB()
+	if err != nil {
+		return nil, err
+	}
+	if limit == 0 || limit > 100 {
+		limit = 100
+	}
+	owner := common.HexToAddress(ownerHex)
+	ids := vm.CrListByOwner(statedb, owner, offset, limit)
+	head := api.e.blockchain.CurrentBlock().Number.Uint64()
+
+	results := make([]*ContentRefResult, 0, len(ids))
+	for _, id := range ids {
+		obj := vm.CrGetContentRef(statedb, id)
+		if obj == nil {
+			continue
+		}
+		r, err := contentRefToResult(obj, head)
+		if err != nil {
+			continue
+		}
+		results = append(results, r)
+	}
+	return map[string]interface{}{
+		"owner":    owner.Hex(),
+		"offset":   offset,
+		"limit":    limit,
+		"count":    len(results),
+		"returned": results,
+	}, nil
+}
+
+// GetContentRefCount returns live + monotonic counts.
+// Wire name: ethernova_getContentRefCount.
+func (api *EthernovaAPI) GetContentRefCount() (map[string]interface{}, error) {
+	statedb, err := api.getStateDB()
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{
+		"live":            vm.CrGetLiveCount(statedb),
+		"slotsUsed":       vm.CrGetSlotsUsed(statedb),
+		"registryAddress": vm.ContentRegistryAddr.Hex(),
+		"precompile":      "0x2B",
+		"forkBlock":       ethernova.ContentRefForkBlock,
+	}, nil
+}
+
+// ContentRefConfig returns Phase 3 metadata for clients/explorers.
+// Wire name: ethernova_contentRefConfig.
+func (api *EthernovaAPI) ContentRefConfig() map[string]interface{} {
+	head := api.e.blockchain.CurrentBlock().Number.Uint64()
+	active := head >= ethernova.ContentRefForkBlock
+	return map[string]interface{}{
+		"forkBlock":                  ethernova.ContentRefForkBlock,
+		"active":                     active,
+		"currentBlock":               head,
+		"registryAddress":            vm.ContentRegistryAddr.Hex(),
+		"precompile":                 "0x2B",
+		"rentEpochLength":            ethernova.RentEpochLength,
+		"rentRatePerBytePerBlock":    ethernova.RentRatePerBytePerBlock,
+		"minRentPrepayWei":           ethernova.MinRentPrepayWei,
+		"maxContentRefSize":          ethernova.MaxContentRefSize,
+		"maxContentTypeBytes":        ethernova.MaxContentRefTypeBytes,
+		"maxAvailabilityProofBytes":  ethernova.MaxContentRefAvailabilityProofBytes,
+		"maxContentRefsPerRentEpoch": ethernova.MaxContentRefsPerRentEpoch,
+		"description":                "NIP-0004 Phase 3: Content Reference Primitive — pointer to off-chain content with rent-backed expiry",
+		"notes":                      "Precompile moved from NIP-0004 draft 0x2A to 0x2B to avoid collision with Phase 2 novaDeferredQueue (already at 0x2A).",
+	}
+}
+
+// ============================================================
+// NIP-0004 Phase 4: Mailbox Primitive RPC endpoints
+//
+// Public methods (registered under the "ethernova" namespace):
+//   - GetMailbox(idHex)                                -> *MailboxResult | null
+//   - GetMailboxByOwner(ownerHex, offset, limit)       -> list wrapper
+//   - GetMessages(mailboxIdHex, fromIndex, limit)      -> list wrapper
+//   - MailboxConfig()                                  -> spec metadata
+//   - MailboxStats(idHex)                              -> queue counters
+// ============================================================
+
+// MailboxResult is the JSON-serialisable representation of a Mailbox
+// Protocol Object: the Phase 1 PO common fields plus the decoded
+// Phase 4 MailboxConfig (capacity / retention / postage / ACL) and
+// the queue counters from MailboxOpsAddr (0xFF04).
+type MailboxResult struct {
+	ID                common.Hash      `json:"id"`
+	Owner             common.Address   `json:"owner"`
+	ExpiryBlock       uint64           `json:"expiryBlock"`
+	LastTouchedBlock  uint64           `json:"lastTouchedBlock"`
+	RentBalance       string           `json:"rentBalance"`
+	CapacityLimit     uint64           `json:"capacityLimit"`
+	RetentionPolicy   uint8            `json:"retentionPolicy"`
+	RetentionBlocks   uint64           `json:"retentionBlocks"`
+	MinPostageWei     string           `json:"minPostageWei"`
+	ACLMode           uint8            `json:"aclMode"`
+	ACL               []common.Address `json:"acl"`
+	QueueCount        uint64           `json:"queueCount"`
+	QueueHead         uint64           `json:"queueHead"`
+	QueueTail         uint64           `json:"queueTail"`
+	PendingDeliveries uint64           `json:"pendingDeliveries"`
+}
+
+// MailboxMessageResult is the JSON shape for a single mailbox message
+// returned by ethernova_getMessages.
+type MailboxMessageResult struct {
+	Index          uint64         `json:"index"`
+	Sender         common.Address `json:"sender"`
+	PayloadHash    common.Hash    `json:"payloadHash"`
+	Timestamp      uint64         `json:"timestamp"`
+	SequenceNumber uint64         `json:"sequenceNumber"`
+}
+
+// mailboxToResult assembles the wire shape from the on-chain pieces.
+// Returns an error if MailboxConfig RLP fails to decode — that signals
+// a corrupt mailbox, which the caller can surface to the user.
+func mailboxToResult(sdb *state.StateDB, obj *types.ProtocolObject) (*MailboxResult, error) {
+	cfg, err := types.DecodeMailboxConfig(obj.StateData)
+	if err != nil {
+		return nil, err
+	}
+	rentStr := "0"
+	if obj.RentBalance != nil {
+		rentStr = obj.RentBalance.String()
+	}
+	postageStr := "0"
+	if cfg.MinPostageWei != nil {
+		postageStr = cfg.MinPostageWei.String()
+	}
+	return &MailboxResult{
+		ID:                obj.ID,
+		Owner:             obj.Owner,
+		ExpiryBlock:       obj.ExpiryBlock,
+		LastTouchedBlock:  obj.LastTouchedBlock,
+		RentBalance:       rentStr,
+		CapacityLimit:     cfg.CapacityLimit,
+		RetentionPolicy:   cfg.RetentionPolicy,
+		RetentionBlocks:   cfg.RetentionBlocks,
+		MinPostageWei:     postageStr,
+		ACLMode:           cfg.ACLMode,
+		ACL:               cfg.ACL,
+		QueueCount:        vm.MbGetCount(sdb, obj.ID),
+		QueueHead:         vm.MbGetHead(sdb, obj.ID),
+		QueueTail:         vm.MbGetTail(sdb, obj.ID),
+		PendingDeliveries: vm.MbGetPending(sdb, obj.ID),
+	}, nil
+}
+
+// GetMailbox returns a Mailbox by ID hex string, or null if absent or
+// the wrong type. Wire name: ethernova_getMailbox.
+func (api *EthernovaAPI) GetMailbox(idHex string) (interface{}, error) {
+	statedb, err := api.getStateDB()
+	if err != nil {
+		return nil, err
+	}
+	id := common.HexToHash(idHex)
+	obj := vm.MbGetMailbox(statedb, id)
+	if obj == nil {
+		return nil, nil
+	}
+	return mailboxToResult(statedb, obj)
+}
+
+// GetMailboxByOwner returns Mailbox PO IDs owned by an address. Returns
+// the same structural shape used by ListContentRefs / GetProtocolObjectsByOwner
+// for consistency. Wire name: ethernova_getMailboxByOwner.
+func (api *EthernovaAPI) GetMailboxByOwner(ownerHex string, offset, limit uint64) (interface{}, error) {
+	statedb, err := api.getStateDB()
+	if err != nil {
+		return nil, err
+	}
+	if limit == 0 || limit > 100 {
+		limit = 100
+	}
+	owner := common.HexToAddress(ownerHex)
+	ids := vm.MbListByOwner(statedb, owner, offset, limit)
+
+	results := make([]*MailboxResult, 0, len(ids))
+	for _, id := range ids {
+		obj := vm.MbGetMailbox(statedb, id)
+		if obj == nil {
+			continue
+		}
+		r, err := mailboxToResult(statedb, obj)
+		if err != nil {
+			continue
+		}
+		results = append(results, r)
+	}
+	return map[string]interface{}{
+		"owner":    owner.Hex(),
+		"offset":   offset,
+		"limit":    limit,
+		"count":    len(results),
+		"returned": results,
+	}, nil
+}
+
+// GetMessages returns up to `limit` messages from a mailbox's queue,
+// starting at head + `fromIndex`. The "fromIndex" parameter is named
+// after NIP-0004 Phase 4 §11 (ethernova_getMessages signature) — it is
+// an OFFSET past the current head, NOT an absolute queue index, so
+// callers see a stable view as recvMessage advances head. Wire name:
+// ethernova_getMessages.
+func (api *EthernovaAPI) GetMessages(mailboxIdHex string, fromIndex, limit uint64) (interface{}, error) {
+	statedb, err := api.getStateDB()
+	if err != nil {
+		return nil, err
+	}
+	if limit == 0 || limit > 256 {
+		limit = 50
+	}
+	id := common.HexToHash(mailboxIdHex)
+
+	obj := vm.MbGetMailbox(statedb, id)
+	if obj == nil {
+		return nil, nil
+	}
+	head := vm.MbGetHead(statedb, id)
+	tail := vm.MbGetTail(statedb, id)
+	count := vm.MbGetCount(statedb, id)
+
+	messages := vm.MbGetMessages(statedb, id, fromIndex, limit)
+	results := make([]*MailboxMessageResult, 0, len(messages))
+	// MbGetMessages iterates in head+offset..tail order; reproduce that
+	// here so the caller can correlate Index back to the on-chain slot.
+	startIdx := head + fromIndex
+	for i, m := range messages {
+		results = append(results, &MailboxMessageResult{
+			Index:          startIdx + uint64(i),
+			Sender:         m.Sender,
+			PayloadHash:    m.PayloadHash,
+			Timestamp:      m.Timestamp,
+			SequenceNumber: m.SequenceNumber,
+		})
+	}
+	return map[string]interface{}{
+		"mailboxId":  id.Hex(),
+		"owner":      obj.Owner.Hex(),
+		"queueHead":  head,
+		"queueTail":  tail,
+		"queueCount": count,
+		"fromIndex":  fromIndex,
+		"limit":      limit,
+		"returned":   len(results),
+		"messages":   results,
+	}, nil
+}
+
+// MailboxConfig returns Phase 4 metadata for clients/explorers. Wire
+// name: ethernova_mailboxConfig.
+func (api *EthernovaAPI) MailboxConfig() map[string]interface{} {
+	head := api.e.blockchain.CurrentBlock().Number.Uint64()
+	active := head >= ethernova.MailboxForkBlock
+	return map[string]interface{}{
+		"forkBlock":          ethernova.MailboxForkBlock,
+		"active":             active,
+		"currentBlock":       head,
+		"queueAddress":       vm.MailboxOpsAddr.Hex(),
+		"managerPrecompile":  "0x2C",
+		"opsPrecompile":      "0x35",
+		"absoluteCapacity":   vm.MailboxAbsoluteCapacity,
+		"maxACLEntries":      vm.MailboxMaxACLEntries,
+		"maxRetentionBlocks": vm.MailboxMaxRetentionBlocks,
+		"description":        "NIP-0004 Phase 4: Mailbox primitive — first stateful Protocol Object with queue and mutation. Send is deferred (block N -> N+1).",
+	}
+}
+
+// MailboxStats returns queue counters for a single mailbox. Wire name:
+// ethernova_mailboxStats. Useful for explorer / dashboard widgets.
+func (api *EthernovaAPI) MailboxStats(idHex string) (map[string]interface{}, error) {
+	statedb, err := api.getStateDB()
+	if err != nil {
+		return nil, err
+	}
+	id := common.HexToHash(idHex)
+	obj := vm.MbGetMailbox(statedb, id)
+	if obj == nil {
+		return map[string]interface{}{
+			"id":     id.Hex(),
+			"exists": false,
+		}, nil
+	}
+	return map[string]interface{}{
+		"id":         id.Hex(),
+		"exists":     true,
+		"owner":      obj.Owner.Hex(),
+		"queueHead":  vm.MbGetHead(statedb, id),
+		"queueTail":  vm.MbGetTail(statedb, id),
+		"queueCount": vm.MbGetCount(statedb, id),
+		"pending":    vm.MbGetPending(statedb, id),
+	}, nil
 }

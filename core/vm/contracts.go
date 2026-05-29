@@ -64,6 +64,19 @@ var PrecompiledContractsEthernova = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{0x26}): &novaShieldedPool{},
 	common.BytesToAddress([]byte{0x27}): &novaContractUpgrade{},
 	common.BytesToAddress([]byte{0x28}): &novaOracle{},
+	common.BytesToAddress([]byte{0x29}): &novaProtocolObjectRegistry{}, // NIP-0004 Phase 1
+	common.BytesToAddress([]byte{0x2A}): &novaDeferredQueue{},          // NIP-0004 Phase 2
+	common.BytesToAddress([]byte{0x2B}): &novaContentRegistry{},        // NIP-0004 Phase 3
+	common.BytesToAddress([]byte{0x2C}): &novaMailboxManager{},         // NIP-0004 Phase 4 (lifecycle)
+	common.BytesToAddress([]byte{0x2D}): &novaSessionArbiter{},         // NIP-0004 Phase 7
+	common.BytesToAddress([]byte{0x2F}): &novaStateWitness{},           // NIP-0004 Phase 5
+	common.BytesToAddress([]byte{0x30}): &novaAsyncCallback{},          // NIP-0004 Phase 11
+	common.BytesToAddress([]byte{0x31}): &novaIdentityAttestation{},    // NIP-0004 Phase 11
+	common.BytesToAddress([]byte{0x32}): &novaSocialGraph{},            // NIP-0004 Phase 11
+	common.BytesToAddress([]byte{0x33}): &novaContentManifest{},        // NIP-0004 Phase 11
+	common.BytesToAddress([]byte{0x34}): &novaGameState{},              // NIP-0004 Phase 11
+	common.BytesToAddress([]byte{0x35}): &novaMailboxOps{},             // NIP-0004 Phase 4 (send/recv/peek/count)
+	common.BytesToAddress([]byte{0x36}): &novaComputeBounty{},          // NIP-0004 Phase 11
 }
 
 var PrecompiledContractsBLS = map[common.Address]PrecompiledContract{
@@ -145,6 +158,35 @@ func RunPrecompiledContract(p PrecompiledContract, input []byte, suppliedGas uin
 	suppliedGas -= gasCost
 	output, err := p.Run(input)
 	return output, suppliedGas, err
+}
+
+// RunStatefulPrecompiledContract runs a precompile that needs EVM state access.
+// readOnly MUST be true when called via STATICCALL to enforce EIP-214.
+func RunStatefulPrecompiledContract(p StatefulPrecompiledContract, evm *EVM, caller common.Address, input []byte, suppliedGas uint64, readOnly bool) (ret []byte, remainingGas uint64, err error) {
+	gasCost := p.RequiredGas(input)
+	if suppliedGas < gasCost {
+		return nil, 0, ErrOutOfGas
+	}
+	suppliedGas -= gasCost
+	output, err := p.RunStateful(evm, caller, input, readOnly)
+	return output, suppliedGas, err
+}
+
+// runPrecompileOrStateful dispatches to RunStateful if available, else Run.
+// readOnly is true when called from StaticCall — passed through to precompile.
+func runPrecompileOrStateful(p PrecompiledContract, evm *EVM, caller common.Address, addr common.Address, input []byte, gas uint64, readOnly bool) ([]byte, uint64, error) {
+	gasCost := p.RequiredGas(input)
+	if gas < gasCost {
+		return nil, 0, ErrOutOfGas
+	}
+	evm.ResourceMeter.RecordPrecompile(addr, input, gasCost)
+	gas -= gasCost
+	if sp, ok := p.(StatefulPrecompiledContract); ok {
+		output, err := sp.RunStateful(evm, caller, input, readOnly)
+		return output, gas, err
+	}
+	output, err := p.Run(input)
+	return output, gas, err
 }
 
 // ECRECOVER implemented as a native contract.

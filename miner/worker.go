@@ -28,6 +28,7 @@ import (
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core"
@@ -1144,6 +1145,26 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 		log.Error("Failed to prepare header for sealing", "err", err)
 		return nil, err
 	}
+	// NIP-0004 Phase 10D — Multi-Dimensional Resource Metering.
+	// Set the canonical per-dimension base price for THIS block. Pure
+	// deterministic function of (parent.ResourceBasePrice,
+	// parent.ResourceUsed, parent.GasLimit). Every honest miner running
+	// the same code on the same parent header produces the same table.
+	// Pre-fork (header.Number < ResourceMeteringForkBlock) this branch
+	// is skipped so legacy headers are produced untouched.
+	if vm.IsResourceMeteringActive(header.Number.Uint64()) {
+		basePrice := misc.CalcNextResourcePrice(
+			parent.ResourceBasePrice,
+			parent.ResourceUsed,
+			parent.GasLimit,
+		)
+		header.ResourceBasePrice = &basePrice
+		// Initialise ResourceUsed as a zeroed vector so the header
+		// serialises correctly even for empty blocks. commit() will
+		// overwrite this with the actual per-tx sum.
+		emptyUsed := types.ResourceLimits{}
+		header.ResourceUsed = &emptyUsed
+	}
 	// If we are care about TheDAO hard-fork check whether to override the extra-data or not
 	if daoBlockUint64 := w.chainConfig.GetEthashEIP779Transition(); daoBlockUint64 != nil {
 		daoBlock := new(big.Int).SetUint64(*daoBlockUint64)
@@ -1195,6 +1216,45 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 		context := core.NewEVMBlockContext(header, w.chain, nil)
 		vmenv := vm.NewEVM(context, vm.TxContext{}, env.state, w.chainConfig, vm.Config{})
 		core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, vmenv, env.state)
+	}
+	// ============================================================
+	// NIP-0004 Phase 2: Deferred Processing Phase (miner symmetry)
+	//
+	// The validator path runs this hook in core/state_processor.go at
+	// the same position (after ProcessBeaconBlockRoot, before the tx
+	// loop). Any asymmetry here — e.g. miner runs a different branch,
+	// miner passes a different statedb, miner forgets to finalise — is
+	// a consensus split. Keep these two call sites identical in spirit
+	// and in the state they hand to the drain.
+	//
+	// The function is fork-gated internally, so calling it on a
+	// pre-fork block is a true no-op (no account materialisation, no
+	// storage writes). Safe to unconditionally invoke.
+	// ============================================================
+	dpRes := core.ProcessDeferredEffects(header, env.state)
+	if dpRes != nil && !dpRes.NoOp && (dpRes.Processed > 0 || dpRes.FailedHandlers > 0) {
+		log.Debug("miner deferred processing drained",
+			"block", dpRes.BlockNumber,
+			"head", dpRes.Head,
+			"newHead", dpRes.NewHead,
+			"processed", dpRes.Processed,
+			"failed", dpRes.FailedHandlers,
+			"skipped", dpRes.Skipped,
+			"capHit", dpRes.CapHit)
+	}
+
+	// ============================================================
+	// NIP-0004 Phase 11: Application-Layer Async Callback Dispatch
+	// (miner symmetry — MUST match state_processor.go exactly)
+	// ============================================================
+	asyncRes := core.ProcessApplicationAsyncCallbacks(header, env.state, w.chain, w.chainConfig)
+	if asyncRes != nil && !asyncRes.NoOp && (asyncRes.Dispatched > 0 || asyncRes.Reverted > 0 || asyncRes.Skipped > 0) {
+		log.Debug("miner async callback dispatch",
+			"block", asyncRes.BlockNumber,
+			"dispatched", asyncRes.Dispatched,
+			"reverted", asyncRes.Reverted,
+			"skipped", asyncRes.Skipped,
+			"capHit", asyncRes.CapHit)
 	}
 	return env, nil
 }
@@ -1276,6 +1336,26 @@ func (w *worker) generateWork(params *generateParams) *newPayloadResult {
 		if errors.Is(err, errBlockInterruptedByTimeout) {
 			log.Warn("Block building is interrupted", "allowance", common.PrettyDuration(w.newpayloadTimeout))
 		}
+	}
+	// NIP-0004 Phase 10D — populate header.ResourceUsed in the payload
+	// generation path as well, mirroring what commit() does for the
+	// sealing path. Without this, blocks built via the engine API would
+	// fail Phase 10D header validation on import.
+	if vm.IsResourceMeteringActive(work.header.Number.Uint64()) {
+		var sum vm.ResourceVector
+		for _, tx := range work.txs {
+			if sample, ok := vm.GlobalResourceMonitor.GetTx(tx.Hash()); ok {
+				sum = sum.Add(sample.Vector)
+			}
+		}
+		used := types.ResourceLimits{
+			Compute:     sum.Compute,
+			StateRead:   sum.StateRead,
+			StateWrite:  sum.StateWrite,
+			ProtocolOps: sum.ProtocolOps,
+			ProofVerify: sum.ProofVerify,
+		}
+		work.header.ResourceUsed = &used
 	}
 	block, err := w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, work.unclelist(), work.receipts, params.withdrawals)
 	if err != nil {
@@ -1370,6 +1450,26 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 		// Create a local environment copy, avoid the data race with snapshot state.
 		// https://github.com/ethereum/go-ethereum/issues/24299
 		env := env.copy()
+		// NIP-0004 Phase 10D — sum per-tx resource vectors into the
+		// header so the block we seal carries the canonical aggregate.
+		// state_processor.go re-validates this on every importing node;
+		// if our sum disagrees with theirs the block is rejected.
+		if vm.IsResourceMeteringActive(env.header.Number.Uint64()) {
+			var sum vm.ResourceVector
+			for _, tx := range env.txs {
+				if sample, ok := vm.GlobalResourceMonitor.GetTx(tx.Hash()); ok {
+					sum = sum.Add(sample.Vector)
+				}
+			}
+			used := types.ResourceLimits{
+				Compute:     sum.Compute,
+				StateRead:   sum.StateRead,
+				StateWrite:  sum.StateWrite,
+				ProtocolOps: sum.ProtocolOps,
+				ProofVerify: sum.ProofVerify,
+			}
+			env.header.ResourceUsed = &used
+		}
 		// Withdrawals are set to nil here, because this is only called in PoW.
 		block, err := w.engine.FinalizeAndAssemble(w.chain, env.header, env.state, env.txs, env.unclelist(), env.receipts, nil)
 		if err != nil {
