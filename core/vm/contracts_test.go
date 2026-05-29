@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/params/ethernova"
 	"github.com/ethereum/go-ethereum/params/types/ctypes"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -242,6 +243,45 @@ func TestIsPrecompiledContractEnabled(t *testing.T) {
 		got = PrecompiledContractsForConfig(c.config, c.blockNum, &zero)[c.addr] == nil
 		if got != expect {
 			t.Errorf("addr: %x, bn: %v, want: %v, got: %v", c.addr, c.blockNum, c.want, expect)
+		}
+	}
+}
+
+func TestNIP0004PrecompilesRespectForkBlocks(t *testing.T) {
+	cfg := params.AllEthashProtocolChanges
+	zero := uint64(0)
+
+	legacyAddr := common.BytesToAddress([]byte{0x20})
+	if _, ok := PrecompiledContractsForConfig(cfg, new(big.Int).SetUint64(ethernova.NovenForkBlock), &zero)[legacyAddr]; !ok {
+		t.Fatalf("legacy Ethernova precompile 0x20 should stay active at NovenForkBlock")
+	}
+
+	nipPrecompiles := map[byte]uint64{
+		0x29: ethernova.ProtocolObjectForkBlock,
+		0x2A: ethernova.DeferredExecForkBlock,
+		0x2B: ethernova.ContentRefForkBlock,
+		0x2C: ethernova.MailboxForkBlock,
+		0x2D: ethernova.SessionForkBlock,
+		0x2F: ethernova.StateLifecycleForkBlock,
+		0x30: ethernova.ApplicationPrecompileForkBlock,
+		0x31: ethernova.ApplicationPrecompileForkBlock,
+		0x32: ethernova.ApplicationPrecompileForkBlock,
+		0x33: ethernova.ApplicationPrecompileForkBlock,
+		0x34: ethernova.ApplicationPrecompileForkBlock,
+		0x35: ethernova.MailboxForkBlock,
+		0x36: ethernova.ApplicationPrecompileForkBlock,
+	}
+	for addrByte, fork := range nipPrecompiles {
+		addr := common.BytesToAddress([]byte{addrByte})
+		if fork > 0 {
+			before := new(big.Int).SetUint64(fork - 1)
+			if _, ok := PrecompiledContractsForConfig(cfg, before, &zero)[addr]; ok {
+				t.Fatalf("NIP-0004 precompile 0x%x registered before fork block %d", addrByte, fork)
+			}
+		}
+		atFork := new(big.Int).SetUint64(fork)
+		if _, ok := PrecompiledContractsForConfig(cfg, atFork, &zero)[addr]; !ok {
+			t.Fatalf("NIP-0004 precompile 0x%x not registered at fork block %d", addrByte, fork)
 		}
 	}
 }

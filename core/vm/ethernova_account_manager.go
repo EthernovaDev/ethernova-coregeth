@@ -35,27 +35,11 @@ import (
 const (
 	accountManagerGasRead  uint64 = 2000
 	accountManagerGasWrite uint64 = 10000
-	recoveryTimelockBlocks uint64 = 100 // short account-recovery safety delay
+	recoveryTimelockBlocks uint64 = 100 // ~15 minutes on devnet
 )
 
 // System address where account manager stores its data
 var accountManagerSystemAddr = common.HexToAddress("0x000000000000000000000000000000000000AA22")
-
-// amEnsureSystemAccount makes sure the account-manager system account at
-// accountManagerSystemAddr (0xAA22) is non-empty per EIP-161. Without this
-// the account has balance=0, nonce=0, codeHash=empty and core/state treats
-// it as empty after storage-only writes. state.Finalise(true) — invoked
-// per-tx in state_processor.go with deleteEmptyObjects — then deletes the
-// account AND every pending storage write. Same failure class as the
-// original 0xFF01 Protocol Object Registry bug. Fix: bump nonce to 1 once.
-func amEnsureSystemAccount(sdb StateDB) {
-	if !sdb.Exist(accountManagerSystemAddr) {
-		sdb.CreateAccount(accountManagerSystemAddr)
-	}
-	if sdb.GetNonce(accountManagerSystemAddr) == 0 {
-		sdb.SetNonce(accountManagerSystemAddr, 1)
-	}
-}
 
 type novaAccountManager struct{}
 
@@ -86,43 +70,27 @@ func (c *novaAccountManager) RequiredGas(input []byte) uint64 {
 }
 
 // RunStateful executes the account manager with access to EVM state.
-// readOnly is true when called via STATICCALL — write ops MUST be rejected.
 func (c *novaAccountManager) RunStateful(evm *EVM, caller common.Address, input []byte, readOnly bool) ([]byte, error) {
 	if len(input) < 1 {
 		return nil, errors.New("empty input")
 	}
 
 	switch input[0] {
-	case 0x01: // setGuardians — WRITE
-		if readOnly {
-			return nil, ErrWriteProtection
-		}
+	case 0x01:
 		return c.setGuardians(evm, caller, input[1:])
-	case 0x02: // getGuardians — READ
+	case 0x02:
 		return c.getGuardians(evm, input[1:])
-	case 0x03: // initiateRecovery — WRITE
-		if readOnly {
-			return nil, ErrWriteProtection
-		}
+	case 0x03:
 		return c.initiateRecovery(evm, caller, input[1:])
-	case 0x04: // approveRecovery — WRITE
-		if readOnly {
-			return nil, ErrWriteProtection
-		}
+	case 0x04:
 		return c.approveRecovery(evm, caller, input[1:])
-	case 0x05: // finalizeRecovery — WRITE
-		if readOnly {
-			return nil, ErrWriteProtection
-		}
+	case 0x05:
 		return c.finalizeRecovery(evm, caller, input[1:])
-	case 0x06: // getRecoveryStatus — READ
+	case 0x06:
 		return c.getRecoveryStatus(evm, input[1:])
-	case 0x07: // initiateKeyRotation — WRITE
-		if readOnly {
-			return nil, ErrWriteProtection
-		}
+	case 0x07:
 		return c.initiateKeyRotation(evm, caller, input[1:])
-	case 0x08: // getKeyRotation — READ
+	case 0x08:
 		return c.getKeyRotation(evm, input[1:])
 	default:
 		return nil, errors.New("unknown function selector")
@@ -173,7 +141,6 @@ func (c *novaAccountManager) setGuardians(evm *EVM, caller common.Address, data 
 	}
 
 	sys := accountManagerSystemAddr
-	amEnsureSystemAccount(evm.StateDB)
 
 	// Store count and threshold
 	evm.StateDB.SetState(sys, storageKey(addrBytes(caller), []byte("guardianCount")), uint64ToHash(count))
@@ -230,8 +197,6 @@ func (c *novaAccountManager) initiateRecovery(evm *EVM, caller common.Address, d
 		return nil, errors.New("caller is not a guardian of target")
 	}
 
-	amEnsureSystemAccount(evm.StateDB)
-
 	// Store recovery request
 	evm.StateDB.SetState(sys, storageKey(addrBytes(target), []byte("recovery.newOwner")), common.BytesToHash(newOwner.Bytes()))
 	evm.StateDB.SetState(sys, storageKey(addrBytes(target), []byte("recovery.approvals")), uint64ToHash(1))
@@ -268,8 +233,6 @@ func (c *novaAccountManager) approveRecovery(evm *EVM, caller common.Address, da
 		}
 	}
 
-	amEnsureSystemAccount(evm.StateDB)
-
 	// Add approval
 	evm.StateDB.SetState(sys, storageKey(addrBytes(target), []byte("recovery.approvedBy"), uint64ToHash(approvals).Bytes()), common.BytesToHash(caller.Bytes()))
 	approvals++
@@ -302,8 +265,6 @@ func (c *novaAccountManager) finalizeRecovery(evm *EVM, caller common.Address, d
 
 	// Get new owner
 	newOwner := common.BytesToAddress(evm.StateDB.GetState(sys, storageKey(addrBytes(target), []byte("recovery.newOwner"))).Bytes())
-
-	amEnsureSystemAccount(evm.StateDB)
 
 	// Store key rotation result
 	evm.StateDB.SetState(sys, storageKey(addrBytes(target), []byte("keyRotation.newKeyHash")), common.BytesToHash(newOwner.Bytes()))
@@ -349,8 +310,6 @@ func (c *novaAccountManager) initiateKeyRotation(evm *EVM, caller common.Address
 	var newKeyHash common.Hash
 	copy(newKeyHash[:], data[:32])
 
-	amEnsureSystemAccount(evm.StateDB)
-
 	evm.StateDB.SetState(sys, storageKey(addrBytes(caller), []byte("keyRotation.newKeyHash")), newKeyHash)
 	evm.StateDB.SetState(sys, storageKey(addrBytes(caller), []byte("keyRotation.block")), uint64ToHash(evm.Context.BlockNumber.Uint64()))
 
@@ -390,10 +349,7 @@ func (c *novaAccountManager) isGuardian(evm *EVM, target, addr common.Address) b
 }
 
 // StatefulPrecompiledContract is the interface for precompiles that need EVM state access.
-// readOnly MUST be true when called via STATICCALL (EIP-214). Implementations
-// MUST reject any state-modifying operation when readOnly is true by returning
-// ErrWriteProtection.
 type StatefulPrecompiledContract interface {
 	PrecompiledContract
-	RunStateful(evm *EVM, caller common.Address, input []byte, readOnly bool) ([]byte, error)
+	RunStateful(evm *EVM, caller common.Address, input []byte, _ bool) ([]byte, error)
 }

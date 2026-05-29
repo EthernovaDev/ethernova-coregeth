@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params/ethernova"
 	"github.com/ethereum/go-ethereum/params/types/ctypes"
 	"github.com/ethereum/go-ethereum/params/vars"
 )
@@ -74,6 +75,10 @@ func ValidateTransaction(tx *types.Transaction, head *types.Header, signer types
 	eip4844Enabled := opts.Config.IsEnabledByTime(opts.Config.GetEIP4844TransitionTime, &head.Time) || opts.Config.IsEnabled(opts.Config.GetEIP4844Transition, head.Number)
 	if !eip4844Enabled && tx.Type() == types.BlobTxType {
 		return fmt.Errorf("%w: type %d rejected, pool not yet in Cancun", core.ErrTxTypeNotSupported, tx.Type())
+	}
+	resourceMeteringEnabled := ethernova.IsEthernovaChainID(opts.Config.GetChainID()) && head.Number != nil && head.Number.Sign() >= 0 && head.Number.Uint64() >= ethernova.ResourceMeteringForkBlock
+	if !resourceMeteringEnabled && tx.Type() == types.ResourceTxType {
+		return fmt.Errorf("%w: type %d rejected, pool not yet in NIP-0004 resource metering", core.ErrTxTypeNotSupported, tx.Type())
 	}
 	// Check whether the init code size has been exceeded
 	if opts.Config.IsEnabledByTime(opts.Config.GetEIP3860TransitionTime, &head.Time) && tx.To() == nil && uint64(len(tx.Data())) > vars.MaxInitCodeSize {

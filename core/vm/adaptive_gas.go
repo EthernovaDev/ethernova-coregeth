@@ -9,36 +9,22 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// AdaptiveGasConfig controls the LEGACY v1 adaptive-gas pattern tracker.
-//
-// IMPORTANT — NOT CONSENSUS RELEVANT.
-// The real consensus path is Adaptive Gas V2 (ApplyAdaptiveGasV2 in
-// adaptive_gas_v2.go), gated exclusively on ethernova.AdaptiveGasV2ForkBlock.
-// It does NOT consult this struct at all. The fields here drive the legacy
-// PatternTracker / StaticClassifier used only for RPC reporting and the
-// opcode profiler — every gas-returning helper that reads Enabled is
-// reporting-only.
-//
-// The Enabled flag stays atomic.Bool only to protect concurrent RPC
-// readers. The RPC toggles (AdaptiveGasToggle, AdaptiveGasSetDiscount,
-// AdaptiveGasSetPenalty) are no-ops by design. Do NOT reintroduce a
-// mutation path here — if the v2 consensus path ever consults this flag
-// again, divergent Enabled values across nodes would immediately split
-// consensus.
+// AdaptiveGasConfig controls the adaptive gas pricing system.
+// When enabled, contracts that exhibit predictable, repetitive execution
+// patterns receive a gas discount, incentivizing efficient code.
+// Contracts with heavy storage/external call usage pay a penalty.
 type AdaptiveGasConfig struct {
 	Enabled         atomic.Bool
-	DiscountPercent uint64 // legacy monitoring only; not consensus-visible
-	PenaltyPercent  uint64 // legacy monitoring only; not consensus-visible
+	DiscountPercent uint64 // e.g. 25 = 25% discount for optimized contracts
+	PenaltyPercent  uint64 // e.g. 10 = 10% surcharge for complex contracts
 }
 
 var GlobalAdaptiveGas = &AdaptiveGasConfig{}
 
 func init() {
-	// Enable the monitoring tracker at startup so RPC reports real data.
-	// This flag has no effect on consensus — see struct comment above.
-	GlobalAdaptiveGas.Enabled.Store(true)
-	GlobalAdaptiveGas.DiscountPercent = 25
-	GlobalAdaptiveGas.PenaltyPercent = 10
+	GlobalAdaptiveGas.Enabled.Store(false) // disabled by default, enable via RPC
+	GlobalAdaptiveGas.DiscountPercent = 25 // 25% discount for optimized patterns
+	GlobalAdaptiveGas.PenaltyPercent = 10  // 10% surcharge for complex patterns
 }
 
 // ============================================================================
@@ -210,10 +196,11 @@ func classifyBytecode(code []byte) *ContractClassification {
 // This uses a tiered system with hard thresholds for determinism.
 //
 // Thresholds:
-//   Pure:          pureScore >= 90 AND storageOps == 0 AND callOps == 0
-//   Light state:   pureScore >= 75 AND storageOps/total < 5%
-//   Mixed:         pureScore >= 40
-//   Storage heavy: pureScore < 40 OR storageOps/total >= 10%
+//
+//	Pure:          pureScore >= 90 AND storageOps == 0 AND callOps == 0
+//	Light state:   pureScore >= 75 AND storageOps/total < 5%
+//	Mixed:         pureScore >= 40
+//	Storage heavy: pureScore < 40 OR storageOps/total >= 10%
 func determineCategory(pureScore, storageOps, callOps, createOps, totalOpcodes uint64) (ContractCategory, int64) {
 	if totalOpcodes == 0 {
 		return CategoryPure, 0
@@ -551,26 +538,29 @@ func opcodeWeight(op OpCode) uint64 {
 // isPureOpcode returns true if the opcode does not access external/persistent state.
 //
 // CRITICAL FIX (v1.1.0):
-//   BUG 1: SLOAD was previously classified as pure. SLOAD reads from persistent
-//          storage (account trie), which is external state. A DEX contract doing
-//          heavy SLOAD (reading reserves, balances, etc.) was scored ~98% pure.
-//          SLOAD is now correctly classified as NON-pure.
 //
-//   BUG 2: Only PUSH0-PUSH4 were listed as pure. PUSH5 through PUSH32 were
-//          missing, causing them to fall to default:false (non-pure). This
-//          deflated pure scores for ALL contracts since PUSH opcodes are among
-//          the most frequently occurring opcodes in any EVM bytecode.
-//          All PUSH variants are now correctly classified as pure.
+//	BUG 1: SLOAD was previously classified as pure. SLOAD reads from persistent
+//	       storage (account trie), which is external state. A DEX contract doing
+//	       heavy SLOAD (reading reserves, balances, etc.) was scored ~98% pure.
+//	       SLOAD is now correctly classified as NON-pure.
+//
+//	BUG 2: Only PUSH0-PUSH4 were listed as pure. PUSH5 through PUSH32 were
+//	       missing, causing them to fall to default:false (non-pure). This
+//	       deflated pure scores for ALL contracts since PUSH opcodes are among
+//	       the most frequently occurring opcodes in any EVM bytecode.
+//	       All PUSH variants are now correctly classified as pure.
 //
 // Pure opcodes: arithmetic, comparison, bitwise, stack manipulation,
-//               memory (volatile), control flow, calldata, code introspection,
-//               hash, return/revert. These depend only on the current
-//               execution frame's stack/memory and calldata.
+//
+//	memory (volatile), control flow, calldata, code introspection,
+//	hash, return/revert. These depend only on the current
+//	execution frame's stack/memory and calldata.
 //
 // NON-pure opcodes: SLOAD, SSTORE, CALL, DELEGATECALL, STATICCALL,
-//                   CALLCODE, CREATE, CREATE2, LOG*, SELFDESTRUCT,
-//                   BALANCE, EXTCODECOPY, EXTCODESIZE, EXTCODEHASH.
-//                   These access persistent state or interact with other accounts.
+//
+//	CALLCODE, CREATE, CREATE2, LOG*, SELFDESTRUCT,
+//	BALANCE, EXTCODECOPY, EXTCODESIZE, EXTCODEHASH.
+//	These access persistent state or interact with other accounts.
 func isPureOpcode(op OpCode) bool {
 	switch op {
 	// Arithmetic

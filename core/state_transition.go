@@ -294,6 +294,15 @@ func (st *StateTransition) buyGas() error {
 func (st *StateTransition) preCheck() error {
 	// Only check transactions that are not fake
 	msg := st.msg
+	if msg.ResourceLimits != nil {
+		blockNumber := uint64(0)
+		if st.evm.Context.BlockNumber != nil && st.evm.Context.BlockNumber.Sign() >= 0 {
+			blockNumber = st.evm.Context.BlockNumber.Uint64()
+		}
+		if blockNumber < ethernova.ResourceMeteringForkBlock {
+			return fmt.Errorf("%w: resource tx before ResourceMeteringForkBlock", types.ErrTxTypeNotSupported)
+		}
+	}
 	if !msg.SkipAccountChecks {
 		// Make sure this transaction's nonce is correct.
 		stNonce := st.state.GetNonce(msg.From)

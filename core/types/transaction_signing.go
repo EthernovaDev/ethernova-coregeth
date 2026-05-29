@@ -50,12 +50,11 @@ func MakeSigner(config ctypes.ChainConfigurator, blockNumber *big.Int, blockTime
 
 func makeSigner(config ctypes.ChainConfigurator, blockNumber *big.Int, blockTime uint64, chainID *big.Int) Signer {
 	switch {
+	case ethernova.IsEthernovaChainID(chainID) && blockNumber != nil && blockNumber.Sign() >= 0 && blockNumber.Uint64() >= ethernova.ResourceMeteringForkBlock:
+		// NIP-0004 Phase 10D — ResourceTx (0x05) activates at the
+		// resource-metering hard fork, independent of Cancun/EIP-4844.
+		return NewPhase10DSigner(chainID)
 	case config.IsEnabledByTime(config.GetEIP4844TransitionTime, &blockTime), config.IsEnabled(config.GetEIP4844Transition, blockNumber):
-		// NIP-0004 Phase 10D — outer signer recognises ResourceTx (0x05)
-		// and falls through to NewCancunSigner behavior for every other
-		// tx type. Returning the Phase 10D signer here is safe pre-fork
-		// because resourceSigner just delegates when the tx type is not
-		// ResourceTxType.
 		return NewPhase10DSigner(chainID)
 	case config.IsEnabled(config.GetEIP1559Transition, blockNumber):
 		return NewEIP1559Signer(chainID)
@@ -79,8 +78,10 @@ func makeSigner(config ctypes.ChainConfigurator, blockNumber *big.Int, blockTime
 // have the current block number available, use MakeSigner instead.
 func LatestSigner(config ctypes.ChainConfigurator) Signer {
 	if chainID := config.GetChainID(); chainID != nil {
+		if ethernova.IsEthernovaChainID(chainID) {
+			return NewPhase10DSigner(chainID)
+		}
 		if config.GetEIP4844TransitionTime() != nil || config.GetEIP4844Transition() != nil {
-			// NIP-0004 Phase 10D — see comment in makeSigner.
 			return NewPhase10DSigner(chainID)
 		}
 		if config.GetEIP1559Transition() != nil {

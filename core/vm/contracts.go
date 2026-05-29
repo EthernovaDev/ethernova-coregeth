@@ -52,8 +52,6 @@ var basePrecompiledContracts = map[common.Address]PrecompiledContract{
 }
 
 // Ethernova v2.0 (Noven Fork): Native precompiles at addresses 0x20-0x28.
-// These are always registered but have no effect on blocks before NovenForkBlock
-// because no contracts call these addresses on the existing chain.
 var PrecompiledContractsEthernova = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{0x20}): &novaBatchHash{},
 	common.BytesToAddress([]byte{0x21}): &novaBatchVerify{},
@@ -64,6 +62,12 @@ var PrecompiledContractsEthernova = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{0x26}): &novaShieldedPool{},
 	common.BytesToAddress([]byte{0x27}): &novaContractUpgrade{},
 	common.BytesToAddress([]byte{0x28}): &novaOracle{},
+}
+
+// NIP-0004 precompiles are registered only at their own hard-fork blocks.
+// Registering them at NovenForkBlock would change pre-fork calls to otherwise
+// empty addresses, which is consensus-visible.
+var PrecompiledContractsNIP0004 = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{0x29}): &novaProtocolObjectRegistry{}, // NIP-0004 Phase 1
 	common.BytesToAddress([]byte{0x2A}): &novaDeferredQueue{},          // NIP-0004 Phase 2
 	common.BytesToAddress([]byte{0x2B}): &novaContentRegistry{},        // NIP-0004 Phase 3
@@ -136,10 +140,30 @@ func PrecompiledContractsForConfig(config ctypes.ChainConfigurator, bn *big.Int,
 	}
 
 	// Ethernova v2.0 (Noven Fork): Native precompiles 0x20-0x28.
-	// Activated at NovenForkBlock. Safe to register always because no
-	// existing contracts call addresses 0x20-0x28.
 	if bn != nil && bn.Uint64() >= ethernova.NovenForkBlock {
 		mergeContracts(precompileds, PrecompiledContractsEthernova)
+	}
+	if bn != nil {
+		blockNumber := bn.Uint64()
+		addNIP := func(addr byte, fork uint64) {
+			if blockNumber >= fork {
+				address := common.BytesToAddress([]byte{addr})
+				precompileds[address] = PrecompiledContractsNIP0004[address]
+			}
+		}
+		addNIP(0x29, ethernova.ProtocolObjectForkBlock)
+		addNIP(0x2A, ethernova.DeferredExecForkBlock)
+		addNIP(0x2B, ethernova.ContentRefForkBlock)
+		addNIP(0x2C, ethernova.MailboxForkBlock)
+		addNIP(0x2D, ethernova.SessionForkBlock)
+		addNIP(0x2F, ethernova.StateLifecycleForkBlock)
+		addNIP(0x30, ethernova.ApplicationPrecompileForkBlock)
+		addNIP(0x31, ethernova.ApplicationPrecompileForkBlock)
+		addNIP(0x32, ethernova.ApplicationPrecompileForkBlock)
+		addNIP(0x33, ethernova.ApplicationPrecompileForkBlock)
+		addNIP(0x34, ethernova.ApplicationPrecompileForkBlock)
+		addNIP(0x35, ethernova.MailboxForkBlock)
+		addNIP(0x36, ethernova.ApplicationPrecompileForkBlock)
 	}
 
 	return precompileds
